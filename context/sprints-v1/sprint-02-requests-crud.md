@@ -58,17 +58,17 @@ No final da sprint, CS/Sales/Product conseguem:
 
 ## Checklist de Acompanhamento
 
-- [ ] Modelar entidade `Request` com campos base e soft delete.
-- [ ] Implementar endpoints de CRUD e votação.
-- [ ] Aplicar paginação e filtros combinados nas listagens.
-- [ ] Garantir regras de acesso por papel (`Admin`, `Editor`, `Viewer`).
-- [ ] Garantir isolamento por `organizationId` em todas as operações.
-- [ ] Persistir metadados de origem da request para entradas estruturadas e não estruturadas.
-- [ ] Implementar histórico básico de mudanças de status da request.
-- [ ] Emitir eventos de domínio para create/update/status/vote.
-- [ ] Documentar endpoints e exemplos no Swagger.
-- [ ] Concluir testes unitários de criação/atualização e votação.
-- [ ] Concluir testes de integração de CRUD com autenticação e filtros.
+- [x] Modelar entidade `Request` com campos base e soft delete.
+- [x] Implementar endpoints de CRUD e votação.
+- [x] Aplicar paginação e filtros combinados nas listagens.
+- [x] Garantir regras de acesso por papel (`Admin`, `Editor`, `Viewer`).
+- [x] Garantir isolamento por `organizationId` em todas as operações.
+- [x] Persistir metadados de origem da request para entradas estruturadas e não estruturadas.
+- [x] Implementar histórico básico de mudanças de status da request.
+- [x] Emitir eventos de domínio para create/update/status/vote.
+- [x] Documentar endpoints e exemplos no Swagger.
+- [x] Concluir testes unitários de criação/atualização e votação.
+- [x] Concluir testes de integração de CRUD com autenticação e filtros.
 - [ ] Validar critérios de aceite em review da sprint.
 
 ## Critérios de Aceite

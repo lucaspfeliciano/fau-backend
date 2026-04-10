@@ -8,7 +8,9 @@ async function bootstrap() {
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('FAU Backend API')
-    .setDescription('Sprint 1 foundation: Auth, Organizations and Teams')
+    .setDescription(
+      'Sprint 2 foundation: Auth, Organizations, Teams and Requests',
+    )
     .setVersion('1.0.0')
     .addBearerAuth()
     .build();

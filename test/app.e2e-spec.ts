@@ -10,6 +10,23 @@ describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
   let usersService: UsersService;
 
+  const loginWithGoogle = async (payload: {
+    googleId: string;
+    email: string;
+    name: string;
+  }) => {
+    const loginResponse = await request(app.getHttpServer())
+      .post('/auth/google')
+      .send(payload)
+      .expect(201);
+
+    return {
+      token: loginResponse.body.accessToken as string,
+      userId: loginResponse.body.user.id as string,
+      organizationId: loginResponse.body.context.organizationId as string,
+    };
+  };
+
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -115,6 +132,146 @@ describe('AppController (e2e)', () => {
       .send({
         name: 'Support Team',
       })
+      .expect(403);
+  });
+
+  it('/requests full flow should create, list, update, vote and soft delete', async () => {
+    const admin = await loginWithGoogle({
+      googleId: 'google-requests-admin-123456',
+      email: 'requests-admin@example.com',
+      name: 'Requests Admin',
+    });
+
+    const createResponse = await request(app.getHttpServer())
+      .post('/requests')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        title: 'Need dark mode',
+        description: 'Multiple customers asked for dark mode.',
+        tags: ['ui', 'dashboard'],
+        sourceType: 'manual',
+      })
+      .expect(201);
+
+    const requestId = createResponse.body.request.id as string;
+    expect(createResponse.body.request.votes).toBe(1);
+    expect(createResponse.body.request.status).toBe('Backlog');
+
+    const listResponse = await request(app.getHttpServer())
+      .get('/requests?page=1&limit=10&status=Backlog&search=dark')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .expect(200);
+
+    expect(listResponse.body.items).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: requestId })]),
+    );
+
+    const updateResponse = await request(app.getHttpServer())
+      .patch(`/requests/${requestId}`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        status: 'Planned',
+        tags: ['ui', 'priority-high'],
+      })
+      .expect(200);
+
+    expect(updateResponse.body.request.status).toBe('Planned');
+
+    const voteResponse = await request(app.getHttpServer())
+      .post(`/requests/${requestId}/vote`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .expect(201);
+
+    expect(voteResponse.body.request.votes).toBe(2);
+
+    const byIdResponse = await request(app.getHttpServer())
+      .get(`/requests/${requestId}`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .expect(200);
+
+    expect(byIdResponse.body.request.id).toBe(requestId);
+    expect(byIdResponse.body.request.status).toBe('Planned');
+
+    const archiveResponse = await request(app.getHttpServer())
+      .delete(`/requests/${requestId}`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .expect(200);
+
+    expect(archiveResponse.body.request.deletedAt).toBeDefined();
+
+    const defaultListAfterArchive = await request(app.getHttpServer())
+      .get('/requests?page=1&limit=10')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .expect(200);
+
+    expect(
+      defaultListAfterArchive.body.items.some(
+        (item: { id: string }) => item.id === requestId,
+      ),
+    ).toBe(false);
+
+    const archivedList = await request(app.getHttpServer())
+      .get('/requests?page=1&limit=10&includeArchived=true')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .expect(200);
+
+    expect(
+      archivedList.body.items.some(
+        (item: { id: string }) => item.id === requestId,
+      ),
+    ).toBe(true);
+  });
+
+  it('/requests mutating routes should return 403 for Viewer role', async () => {
+    const viewer = await loginWithGoogle({
+      googleId: 'google-requests-viewer-123456',
+      email: 'requests-viewer@example.com',
+      name: 'Requests Viewer',
+    });
+
+    const seedRequest = await request(app.getHttpServer())
+      .post('/requests')
+      .set('Authorization', `Bearer ${viewer.token}`)
+      .send({
+        title: 'Seed request',
+        description: 'Seed item to test viewer permissions.',
+      })
+      .expect(201);
+
+    const requestId = seedRequest.body.request.id as string;
+
+    const roleUpdated = usersService.setMembershipRole(
+      viewer.userId,
+      viewer.organizationId,
+      Role.Viewer,
+    );
+    expect(roleUpdated).toBe(true);
+
+    await request(app.getHttpServer())
+      .post('/requests')
+      .set('Authorization', `Bearer ${viewer.token}`)
+      .send({
+        title: 'Forbidden create',
+        description: 'Viewer should not create requests.',
+      })
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .patch(`/requests/${requestId}`)
+      .set('Authorization', `Bearer ${viewer.token}`)
+      .send({
+        status: 'Planned',
+      })
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .post(`/requests/${requestId}/vote`)
+      .set('Authorization', `Bearer ${viewer.token}`)
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .delete(`/requests/${requestId}`)
+      .set('Authorization', `Bearer ${viewer.token}`)
       .expect(403);
   });
 });
