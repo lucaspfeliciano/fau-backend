@@ -19,6 +19,11 @@ export interface PaginatedRequestsResult {
   totalPages: number;
 }
 
+export interface SimilarRequestMatch {
+  request: RequestEntity;
+  score: number;
+}
+
 @Injectable()
 export class RequestsService {
   private readonly requests: RequestEntity[] = [];
@@ -421,6 +426,41 @@ export class RequestsService {
     return updatedRequests;
   }
 
+  findMostSimilarByText(
+    organizationId: string,
+    rawText: string,
+    threshold: number,
+  ): SimilarRequestMatch | undefined {
+    const normalized = rawText.trim().toLowerCase();
+    if (!normalized) {
+      return undefined;
+    }
+
+    let bestMatch: SimilarRequestMatch | undefined;
+
+    for (const request of this.requests) {
+      if (request.organizationId !== organizationId || request.deletedAt) {
+        continue;
+      }
+
+      const referenceText = `${request.title} ${request.description}`;
+      const score = this.calculateTextSimilarity(normalized, referenceText);
+
+      if (score < threshold) {
+        continue;
+      }
+
+      if (!bestMatch || score > bestMatch.score) {
+        bestMatch = {
+          request,
+          score,
+        };
+      }
+    }
+
+    return bestMatch;
+  }
+
   private findById(
     requestId: string,
     organizationId: string,
@@ -469,5 +509,32 @@ export class RequestsService {
     }
 
     return result;
+  }
+
+  private calculateTextSimilarity(a: string, b: string): number {
+    const normalize = (value: string) =>
+      value
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/gi, ' ')
+        .split(/\s+/)
+        .map((token) => token.trim())
+        .filter((token) => token.length >= 3);
+
+    const tokensA = new Set(normalize(a));
+    const tokensB = new Set(normalize(b));
+
+    if (tokensA.size === 0 || tokensB.size === 0) {
+      return 0;
+    }
+
+    let intersection = 0;
+    for (const token of tokensA) {
+      if (tokensB.has(token)) {
+        intersection += 1;
+      }
+    }
+
+    const unionSize = new Set([...tokensA, ...tokensB]).size;
+    return unionSize === 0 ? 0 : intersection / unionSize;
   }
 }

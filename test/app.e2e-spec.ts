@@ -668,4 +668,64 @@ describe('AppController (e2e)', () => {
       })
       .expect(200);
   });
+
+  it('/ai/requests/import-notes should deduplicate and create requests from unstructured notes', async () => {
+    const admin = await loginWithGoogle({
+      googleId: 'google-ai-admin-123456',
+      email: 'ai-admin@example.com',
+      name: 'AI Admin',
+    });
+
+    const seed = await request(app.getHttpServer())
+      .post('/requests')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        title: 'Dashboard por equipe',
+        description: 'Clientes pedem dashboard por equipe com filtros.',
+      })
+      .expect(201);
+
+    const seedRequestId = seed.body.request.id as string;
+
+    const dedupeResponse = await request(app.getHttpServer())
+      .post('/ai/requests/import-notes')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        sourceType: 'meeting-notes',
+        noteExternalId: 'meeting-001',
+        text: 'Cliente pediu dashboard por equipe com filtros e também relatou dificuldade em montar visões por time.',
+      })
+      .expect(201);
+
+    expect(dedupeResponse.body.deduplicatedRequests).toBeGreaterThanOrEqual(1);
+
+    const seedAfterDedupe = await request(app.getHttpServer())
+      .get(`/requests/${seedRequestId}`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .expect(200);
+
+    expect(seedAfterDedupe.body.request.votes).toBeGreaterThanOrEqual(2);
+
+    const createResponse = await request(app.getHttpServer())
+      .post('/ai/requests/import-notes')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        sourceType: 'sales-conversation',
+        noteExternalId: 'sales-001',
+        text: 'Cliente enterprise reportou bug crítico: timeout no export CSV do relatório financeiro para auditoria.',
+      })
+      .expect(201);
+
+    expect(createResponse.body.createdRequests).toBeGreaterThanOrEqual(1);
+
+    const aiCreated = (
+      createResponse.body.items as Array<{
+        action: string;
+        request: { sourceType: string; sourceRef?: string };
+      }>
+    ).find((item) => item.action === 'created');
+
+    expect(aiCreated?.request.sourceType).toBe('ai-import');
+    expect(aiCreated?.request.sourceRef).toContain('sales-conversation');
+  });
 });

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AiProcessingModule } from './ai-processing/ai-processing.module';
 import { AuthModule } from './auth/auth.module';
 import { CompaniesModule } from './companies/companies.module';
 import { AccessControlModule } from './common/auth/access-control.module';
@@ -26,6 +27,7 @@ import { UsersModule } from './users/users.module';
     EngineeringModule,
     TeamsModule,
     AuthModule,
+    AiProcessingModule,
   ],
   controllers: [AppController],
   providers: [AppService],

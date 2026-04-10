@@ -59,18 +59,18 @@ No final da sprint, CS/Sales consegue:
 
 ## Checklist de Acompanhamento
 
-- [ ] Implementar endpoint de importação de notas (`POST /ai/requests/import-notes`).
-- [ ] Implementar pipeline de normalização e extração de itens.
-- [ ] Implementar deduplicação v0 por similaridade textual.
-- [ ] Implementar incremento de votos para requests similares.
-- [ ] Persistir origem, usuário, timestamp e nível de confiança.
-- [ ] Suportar múltiplos tipos de fonte (`meeting-notes`, `sales-conversation`, `slack-message`).
-- [ ] Persistir trecho de evidência para auditoria da extração.
-- [ ] Emitir eventos de resultado (request criada, request deduplicada, voto incrementado).
-- [ ] Implementar tratamento de timeout/falhas e logs de processamento.
-- [ ] Documentar payloads e respostas no Swagger.
-- [ ] Concluir testes unitários de parser e deduplicação.
-- [ ] Concluir testes de integração para cenários de similaridade alta e baixa.
+- [x] Implementar endpoint de importação de notas (`POST /ai/requests/import-notes`).
+- [x] Implementar pipeline de normalização e extração de itens.
+- [x] Implementar deduplicação v0 por similaridade textual.
+- [x] Implementar incremento de votos para requests similares.
+- [x] Persistir origem, usuário, timestamp e nível de confiança.
+- [x] Suportar múltiplos tipos de fonte (`meeting-notes`, `sales-conversation`, `slack-message`).
+- [x] Persistir trecho de evidência para auditoria da extração.
+- [x] Emitir eventos de resultado (request criada, request deduplicada, voto incrementado).
+- [x] Implementar tratamento de timeout/falhas e logs de processamento.
+- [x] Documentar payloads e respostas no Swagger.
+- [x] Concluir testes unitários de parser e deduplicação.
+- [x] Concluir testes de integração para cenários de similaridade alta e baixa.
 - [ ] Validar critérios de aceite em review da sprint.
 
 ## Critérios de Aceite
