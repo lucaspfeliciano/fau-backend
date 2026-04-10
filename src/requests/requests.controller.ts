@@ -140,4 +140,76 @@ export class RequestsController {
       request: this.requestsService.vote(id, user),
     };
   }
+
+  @Post(':id/customers/:customerId')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Link customer to request' })
+  @ApiParam({ name: 'id', description: 'Request id' })
+  @ApiParam({ name: 'customerId', description: 'Customer id' })
+  @ApiCreatedResponse({ description: 'Customer linked to request.' })
+  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  linkCustomer(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('customerId') customerId: string,
+  ) {
+    return {
+      request: this.requestsService.linkCustomer(id, customerId, user),
+    };
+  }
+
+  @Delete(':id/customers/:customerId')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Unlink customer from request' })
+  @ApiParam({ name: 'id', description: 'Request id' })
+  @ApiParam({ name: 'customerId', description: 'Customer id' })
+  @ApiOkResponse({ description: 'Customer unlinked from request.' })
+  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  unlinkCustomer(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('customerId') customerId: string,
+  ) {
+    return {
+      request: this.requestsService.unlinkCustomer(id, customerId, user),
+    };
+  }
+
+  @Post(':id/companies/:companyId')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Link company to request' })
+  @ApiParam({ name: 'id', description: 'Request id' })
+  @ApiParam({ name: 'companyId', description: 'Company id' })
+  @ApiCreatedResponse({ description: 'Company linked to request.' })
+  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  linkCompany(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('companyId') companyId: string,
+  ) {
+    return {
+      request: this.requestsService.linkCompany(id, companyId, user),
+    };
+  }
+
+  @Delete(':id/companies/:companyId')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Unlink company from request' })
+  @ApiParam({ name: 'id', description: 'Request id' })
+  @ApiParam({ name: 'companyId', description: 'Company id' })
+  @ApiOkResponse({ description: 'Company unlinked from request.' })
+  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  unlinkCompany(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('companyId') companyId: string,
+  ) {
+    return {
+      request: this.requestsService.unlinkCompany(id, companyId, user),
+    };
+  }
 }

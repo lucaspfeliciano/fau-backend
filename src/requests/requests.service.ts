@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import { CompaniesService } from '../companies/companies.service';
 import { DomainEventsService } from '../common/events/domain-events.service';
+import { CustomersService } from '../customers/customers.service';
 import type { AuthenticatedUser } from '../common/auth/authenticated-user.interface';
 import type { CreateRequestInput } from './dto/create-request.schema';
 import type { QueryRequestsInput } from './dto/query-requests.schema';
@@ -21,7 +23,11 @@ export interface PaginatedRequestsResult {
 export class RequestsService {
   private readonly requests: RequestEntity[] = [];
 
-  constructor(private readonly domainEventsService: DomainEventsService) {}
+  constructor(
+    private readonly domainEventsService: DomainEventsService,
+    private readonly customersService: CustomersService,
+    private readonly companiesService: CompaniesService,
+  ) {}
 
   create(input: CreateRequestInput, actor: AuthenticatedUser): RequestEntity {
     const now = new Date().toISOString();
@@ -245,6 +251,114 @@ export class RequestsService {
         votes: request.votes,
       },
     });
+
+    return request;
+  }
+
+  linkCustomer(
+    requestId: string,
+    customerId: string,
+    actor: AuthenticatedUser,
+  ): RequestEntity {
+    const request = this.findById(requestId, actor.organizationId, false);
+    this.customersService.findOneById(customerId, actor.organizationId);
+
+    if (!request.customerIds.includes(customerId)) {
+      request.customerIds.push(customerId);
+      request.updatedAt = new Date().toISOString();
+
+      this.domainEventsService.publish({
+        name: 'request.customer_linked',
+        occurredAt: request.updatedAt,
+        actorId: actor.id,
+        organizationId: actor.organizationId,
+        payload: {
+          requestId: request.id,
+          customerId,
+        },
+      });
+    }
+
+    return request;
+  }
+
+  unlinkCustomer(
+    requestId: string,
+    customerId: string,
+    actor: AuthenticatedUser,
+  ): RequestEntity {
+    const request = this.findById(requestId, actor.organizationId, false);
+    const previousLength = request.customerIds.length;
+    request.customerIds = request.customerIds.filter((id) => id !== customerId);
+
+    if (request.customerIds.length !== previousLength) {
+      request.updatedAt = new Date().toISOString();
+
+      this.domainEventsService.publish({
+        name: 'request.customer_unlinked',
+        occurredAt: request.updatedAt,
+        actorId: actor.id,
+        organizationId: actor.organizationId,
+        payload: {
+          requestId: request.id,
+          customerId,
+        },
+      });
+    }
+
+    return request;
+  }
+
+  linkCompany(
+    requestId: string,
+    companyId: string,
+    actor: AuthenticatedUser,
+  ): RequestEntity {
+    const request = this.findById(requestId, actor.organizationId, false);
+    this.companiesService.findOneById(companyId, actor.organizationId);
+
+    if (!request.companyIds.includes(companyId)) {
+      request.companyIds.push(companyId);
+      request.updatedAt = new Date().toISOString();
+
+      this.domainEventsService.publish({
+        name: 'request.company_linked',
+        occurredAt: request.updatedAt,
+        actorId: actor.id,
+        organizationId: actor.organizationId,
+        payload: {
+          requestId: request.id,
+          companyId,
+        },
+      });
+    }
+
+    return request;
+  }
+
+  unlinkCompany(
+    requestId: string,
+    companyId: string,
+    actor: AuthenticatedUser,
+  ): RequestEntity {
+    const request = this.findById(requestId, actor.organizationId, false);
+    const previousLength = request.companyIds.length;
+    request.companyIds = request.companyIds.filter((id) => id !== companyId);
+
+    if (request.companyIds.length !== previousLength) {
+      request.updatedAt = new Date().toISOString();
+
+      this.domainEventsService.publish({
+        name: 'request.company_unlinked',
+        occurredAt: request.updatedAt,
+        actorId: actor.id,
+        organizationId: actor.organizationId,
+        payload: {
+          requestId: request.id,
+          companyId,
+        },
+      });
+    }
 
     return request;
   }

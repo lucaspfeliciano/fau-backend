@@ -2,21 +2,19 @@ import { Module } from '@nestjs/common';
 import { CompaniesModule } from '../companies/companies.module';
 import { AccessControlModule } from '../common/auth/access-control.module';
 import { DomainEventsModule } from '../common/events/domain-events.module';
-import { CustomersModule } from '../customers/customers.module';
 import { UsersModule } from '../users/users.module';
-import { RequestsController } from './requests.controller';
-import { RequestsService } from './requests.service';
+import { CustomersController } from './customers.controller';
+import { CustomersService } from './customers.service';
 
 @Module({
   imports: [
+    CompaniesModule,
     AccessControlModule,
     DomainEventsModule,
     UsersModule,
-    CustomersModule,
-    CompaniesModule,
   ],
-  controllers: [RequestsController],
-  providers: [RequestsService],
-  exports: [RequestsService],
+  controllers: [CustomersController],
+  providers: [CustomersService],
+  exports: [CustomersService],
 })
-export class RequestsModule {}
+export class CustomersModule {}

@@ -65,17 +65,17 @@ No final da sprint, o time consegue:
 
 ## Checklist de Acompanhamento
 
-- [ ] Modelar `Company` e `Customer` com índices necessários.
-- [ ] Implementar APIs de empresas (create/read/update).
-- [ ] Implementar APIs de clientes (create/read/update).
-- [ ] Implementar endpoints de vínculo entre request, customer e company.
-- [ ] Garantir isolamento multi-tenant nas associações.
-- [ ] Implementar consultas de rastreabilidade request -> customers/companies.
-- [ ] Emitir eventos de domínio em vínculo e desvínculo de entidades.
+- [x] Modelar `Company` e `Customer` com índices necessários.
+- [x] Implementar APIs de empresas (create/read/update).
+- [x] Implementar APIs de clientes (create/read/update).
+- [x] Implementar endpoints de vínculo entre request, customer e company.
+- [x] Garantir isolamento multi-tenant nas associações.
+- [x] Implementar consultas de rastreabilidade request -> customers/companies.
+- [x] Emitir eventos de domínio em vínculo e desvínculo de entidades.
 - [ ] Preparar matching inicial por e-mail/domínio para entradas importadas.
-- [ ] Documentar exemplos de associação no Swagger.
-- [ ] Concluir testes unitários das regras de vínculo.
-- [ ] Concluir testes de integração do fluxo empresa -> cliente -> request.
+- [x] Documentar exemplos de associação no Swagger.
+- [x] Concluir testes unitários das regras de vínculo.
+- [x] Concluir testes de integração do fluxo empresa -> cliente -> request.
 - [ ] Validar critérios de aceite em review da sprint.
 
 ## Critérios de Aceite

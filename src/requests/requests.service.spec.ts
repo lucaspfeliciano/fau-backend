@@ -1,5 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { CompaniesService } from '../companies/companies.service';
 import { DomainEventsService } from '../common/events/domain-events.service';
+import { CustomersService } from '../customers/customers.service';
 import { Role } from '../common/auth/role.enum';
 import { RequestsService } from './requests.service';
 import { RequestStatus } from './entities/request-status.enum';
@@ -7,6 +9,8 @@ import type { AuthenticatedUser } from '../common/auth/authenticated-user.interf
 
 describe('RequestsService', () => {
   let requestsService: RequestsService;
+  let companiesService: CompaniesService;
+  let customersService: CustomersService;
 
   const actor: AuthenticatedUser = {
     id: 'user-1',
@@ -18,10 +22,17 @@ describe('RequestsService', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [RequestsService, DomainEventsService],
+      providers: [
+        RequestsService,
+        DomainEventsService,
+        CompaniesService,
+        CustomersService,
+      ],
     }).compile();
 
     requestsService = module.get<RequestsService>(RequestsService);
+    companiesService = module.get<CompaniesService>(CompaniesService);
+    customersService = module.get<CustomersService>(CustomersService);
   });
 
   it('should create request with initial vote and status history', () => {
@@ -96,5 +107,59 @@ describe('RequestsService', () => {
 
     const voted = requestsService.vote(request.id, actor);
     expect(voted.votes).toBe(2);
+  });
+
+  it('should link and unlink customer and company to request', () => {
+    const request = requestsService.create(
+      {
+        title: 'Link relations',
+        description: 'Need relation links.',
+      },
+      actor,
+    );
+
+    const company = companiesService.create(
+      {
+        name: 'Acme Corp',
+      },
+      actor,
+    );
+
+    const customer = customersService.create(
+      {
+        name: 'Alice',
+        email: 'alice@acme.com',
+        companyId: company.id,
+      },
+      actor,
+    );
+
+    const linkedCustomer = requestsService.linkCustomer(
+      request.id,
+      customer.id,
+      actor,
+    );
+    expect(linkedCustomer.customerIds).toContain(customer.id);
+
+    const linkedCompany = requestsService.linkCompany(
+      request.id,
+      company.id,
+      actor,
+    );
+    expect(linkedCompany.companyIds).toContain(company.id);
+
+    const unlinkedCustomer = requestsService.unlinkCustomer(
+      request.id,
+      customer.id,
+      actor,
+    );
+    expect(unlinkedCustomer.customerIds).not.toContain(customer.id);
+
+    const unlinkedCompany = requestsService.unlinkCompany(
+      request.id,
+      company.id,
+      actor,
+    );
+    expect(unlinkedCompany.companyIds).not.toContain(company.id);
   });
 });

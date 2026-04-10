@@ -274,4 +274,159 @@ describe('AppController (e2e)', () => {
       .set('Authorization', `Bearer ${viewer.token}`)
       .expect(403);
   });
+
+  it('/companies + /customers should create and update resources', async () => {
+    const admin = await loginWithGoogle({
+      googleId: 'google-customer-company-admin-123456',
+      email: 'customer-company-admin@example.com',
+      name: 'Customer Company Admin',
+    });
+
+    const companyResponse = await request(app.getHttpServer())
+      .post('/companies')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        name: 'Acme Corp',
+        revenue: 250000,
+      })
+      .expect(201);
+
+    const companyId = companyResponse.body.company.id as string;
+
+    const customerResponse = await request(app.getHttpServer())
+      .post('/customers')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        name: 'Alice Johnson',
+        email: 'alice@acme.com',
+        companyId,
+      })
+      .expect(201);
+
+    const customerId = customerResponse.body.customer.id as string;
+    expect(customerResponse.body.customer.companyId).toBe(companyId);
+
+    const customersList = await request(app.getHttpServer())
+      .get(`/customers?page=1&limit=10&companyId=${companyId}`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .expect(200);
+
+    expect(customersList.body.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: customerId, companyId }),
+      ]),
+    );
+
+    const updatedCustomer = await request(app.getHttpServer())
+      .patch(`/customers/${customerId}`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        name: 'Alice Silva',
+      })
+      .expect(200);
+
+    expect(updatedCustomer.body.customer.name).toBe('Alice Silva');
+
+    const updatedCompany = await request(app.getHttpServer())
+      .patch(`/companies/${companyId}`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        name: 'Acme Enterprise',
+      })
+      .expect(200);
+
+    expect(updatedCompany.body.company.name).toBe('Acme Enterprise');
+  });
+
+  it('/requests link endpoints should connect customer/company and block cross-tenant links', async () => {
+    const adminA = await loginWithGoogle({
+      googleId: 'google-org-a-admin-123456',
+      email: 'org-a-admin@example.com',
+      name: 'Org A Admin',
+    });
+
+    const requestResponse = await request(app.getHttpServer())
+      .post('/requests')
+      .set('Authorization', `Bearer ${adminA.token}`)
+      .send({
+        title: 'Need integrations',
+        description: 'Customer requested integration improvements.',
+      })
+      .expect(201);
+
+    const requestId = requestResponse.body.request.id as string;
+
+    const companyAResponse = await request(app.getHttpServer())
+      .post('/companies')
+      .set('Authorization', `Bearer ${adminA.token}`)
+      .send({
+        name: 'Org A Company',
+      })
+      .expect(201);
+
+    const companyAId = companyAResponse.body.company.id as string;
+
+    const customerAResponse = await request(app.getHttpServer())
+      .post('/customers')
+      .set('Authorization', `Bearer ${adminA.token}`)
+      .send({
+        name: 'Org A Customer',
+        email: 'orga-customer@example.com',
+        companyId: companyAId,
+      })
+      .expect(201);
+
+    const customerAId = customerAResponse.body.customer.id as string;
+
+    const linkedCustomer = await request(app.getHttpServer())
+      .post(`/requests/${requestId}/customers/${customerAId}`)
+      .set('Authorization', `Bearer ${adminA.token}`)
+      .expect(201);
+
+    expect(linkedCustomer.body.request.customerIds).toContain(customerAId);
+
+    const linkedCompany = await request(app.getHttpServer())
+      .post(`/requests/${requestId}/companies/${companyAId}`)
+      .set('Authorization', `Bearer ${adminA.token}`)
+      .expect(201);
+
+    expect(linkedCompany.body.request.companyIds).toContain(companyAId);
+
+    const adminB = await loginWithGoogle({
+      googleId: 'google-org-b-admin-123456',
+      email: 'org-b-admin@example.com',
+      name: 'Org B Admin',
+    });
+
+    const companyBResponse = await request(app.getHttpServer())
+      .post('/companies')
+      .set('Authorization', `Bearer ${adminB.token}`)
+      .send({
+        name: 'Org B Company',
+      })
+      .expect(201);
+
+    const companyBId = companyBResponse.body.company.id as string;
+
+    await request(app.getHttpServer())
+      .post(`/requests/${requestId}/companies/${companyBId}`)
+      .set('Authorization', `Bearer ${adminA.token}`)
+      .expect(404);
+
+    const unlinkedCustomer = await request(app.getHttpServer())
+      .delete(`/requests/${requestId}/customers/${customerAId}`)
+      .set('Authorization', `Bearer ${adminA.token}`)
+      .expect(200);
+
+    expect(unlinkedCustomer.body.request.customerIds).not.toContain(
+      customerAId,
+    );
+
+    const unlinkedCompany = await request(app.getHttpServer())
+      .delete(`/requests/${requestId}/companies/${companyAId}`)
+      .set('Authorization', `Bearer ${adminA.token}`)
+      .expect(200);
+
+    expect(unlinkedCompany.body.request.companyIds).not.toContain(companyAId);
+  });
 });
