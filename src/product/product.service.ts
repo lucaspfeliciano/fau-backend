@@ -313,7 +313,7 @@ export class ProductService {
     input: UpdateFeatureInput,
     actor: AuthenticatedUser,
   ): FeatureEntity {
-    const feature = this.findFeatureById(id, actor.organizationId);
+    const feature = this.findFeatureByIdOrFail(id, actor.organizationId);
     const previousStatus = feature.status;
 
     if (input.title !== undefined) {
@@ -407,7 +407,7 @@ export class ProductService {
     requestId: string,
     actor: AuthenticatedUser,
   ): FeatureEntity {
-    const feature = this.findFeatureById(featureId, actor.organizationId);
+    const feature = this.findFeatureByIdOrFail(featureId, actor.organizationId);
     const request = this.requestsService.findOneById(
       requestId,
       actor.organizationId,
@@ -452,7 +452,7 @@ export class ProductService {
     featureId: string,
     organizationId: string,
   ): FeatureTraceabilityResult {
-    const feature = this.findFeatureById(featureId, organizationId);
+    const feature = this.findFeatureByIdOrFail(featureId, organizationId);
     const requests = feature.requestIds
       .map((requestId) => {
         try {
@@ -507,6 +507,10 @@ export class ProductService {
     };
   }
 
+  findFeatureById(featureId: string, organizationId: string): FeatureEntity {
+    return this.findFeatureByIdOrFail(featureId, organizationId);
+  }
+
   private findInitiativeById(
     id: string,
     organizationId: string,
@@ -522,7 +526,10 @@ export class ProductService {
     return initiative;
   }
 
-  private findFeatureById(id: string, organizationId: string): FeatureEntity {
+  private findFeatureByIdOrFail(
+    id: string,
+    organizationId: string,
+  ): FeatureEntity {
     const feature = this.features.find(
       (item) => item.id === id && item.organizationId === organizationId,
     );

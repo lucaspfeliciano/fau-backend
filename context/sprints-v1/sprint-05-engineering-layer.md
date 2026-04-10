@@ -62,17 +62,17 @@ No final da sprint, Engineering consegue:
 
 ## Checklist de Acompanhamento
 
-- [ ] Modelar entidades `Task` e `Sprint`.
-- [ ] Implementar APIs de sprint (create/read/update).
-- [ ] Implementar APIs de task e associação com sprint.
-- [ ] Garantir regra de task obrigatoriamente vinculada a feature.
-- [ ] Implementar consulta task -> feature -> request -> customer/company.
-- [ ] Implementar atualização automática de progresso da feature por status de tasks.
-- [ ] Preservar referência de origem da request no contexto de execução da task.
-- [ ] Garantir validação de fechamento de sprint com tasks pendentes.
-- [ ] Documentar fluxo feature -> task -> sprint no Swagger.
-- [ ] Concluir testes unitários de tasks e fechamento de sprint.
-- [ ] Concluir testes de integração do fluxo completo de execução.
+- [x] Modelar entidades `Task` e `Sprint`.
+- [x] Implementar APIs de sprint (create/read/update).
+- [x] Implementar APIs de task e associação com sprint.
+- [x] Garantir regra de task obrigatoriamente vinculada a feature.
+- [x] Implementar consulta task -> feature -> request -> customer/company.
+- [x] Implementar atualização automática de progresso da feature por status de tasks.
+- [x] Preservar referência de origem da request no contexto de execução da task.
+- [x] Garantir validação de fechamento de sprint com tasks pendentes.
+- [x] Documentar fluxo feature -> task -> sprint no Swagger.
+- [x] Concluir testes unitários de tasks e fechamento de sprint.
+- [x] Concluir testes de integração do fluxo completo de execução.
 - [ ] Validar critérios de aceite em review da sprint.
 
 ## Critérios de Aceite

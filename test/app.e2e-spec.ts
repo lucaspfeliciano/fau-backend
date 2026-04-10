@@ -545,4 +545,127 @@ describe('AppController (e2e)', () => {
       expect.arrayContaining([expect.objectContaining({ id: companyId })]),
     );
   });
+
+  it('/engineering flow should manage tasks and sprints with feature sync', async () => {
+    const admin = await loginWithGoogle({
+      googleId: 'google-engineering-admin-123456',
+      email: 'engineering-admin@example.com',
+      name: 'Engineering Admin',
+    });
+
+    const requestResponse = await request(app.getHttpServer())
+      .post('/requests')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        title: 'Need API observability',
+        description: 'Customers need better API observability and logs.',
+        tags: ['strategic'],
+      })
+      .expect(201);
+
+    const requestId = requestResponse.body.request.id as string;
+
+    const featureResponse = await request(app.getHttpServer())
+      .post('/product/features')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        title: 'Observability package',
+        description: 'Unified observability for API operations.',
+        requestIds: [requestId],
+      })
+      .expect(201);
+
+    const featureId = featureResponse.body.feature.id as string;
+
+    const sprintResponse = await request(app.getHttpServer())
+      .post('/engineering/sprints')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        name: 'Sprint 31',
+        startDate: '2026-04-14T00:00:00.000Z',
+        endDate: '2026-04-28T00:00:00.000Z',
+      })
+      .expect(201);
+
+    const sprintId = sprintResponse.body.sprint.id as string;
+
+    const taskResponse = await request(app.getHttpServer())
+      .post('/engineering/tasks')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        title: 'Implement tracing middleware',
+        description: 'Add correlation id and structured logs.',
+        featureId,
+        sprintId,
+        estimate: 5,
+      })
+      .expect(201);
+
+    const taskId = taskResponse.body.task.id as string;
+
+    const taskInProgress = await request(app.getHttpServer())
+      .patch(`/engineering/tasks/${taskId}`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        status: 'In Progress',
+      })
+      .expect(200);
+
+    expect(taskInProgress.body.task.status).toBe('In Progress');
+
+    const featureAfterTaskStart = await request(app.getHttpServer())
+      .get('/product/features?page=1&limit=10')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .expect(200);
+
+    const syncedFeature = (
+      featureAfterTaskStart.body.items as Array<{
+        id: string;
+        status: string;
+      }>
+    ).find((item) => item.id === featureId);
+    expect(syncedFeature?.status).toBe('In Progress');
+
+    await request(app.getHttpServer())
+      .patch(`/engineering/sprints/${sprintId}`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        status: 'Completed',
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .patch(`/engineering/tasks/${taskId}`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        status: 'Done',
+      })
+      .expect(200);
+
+    const progress = await request(app.getHttpServer())
+      .get(`/engineering/sprints/${sprintId}/progress`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .expect(200);
+
+    expect(progress.body.totals.doneTasks).toBe(1);
+    expect(progress.body.totals.completionRate).toBe(100);
+
+    const traceability = await request(app.getHttpServer())
+      .get(`/engineering/tasks/${taskId}/traceability`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .expect(200);
+
+    expect(traceability.body.task.id).toBe(taskId);
+    expect(traceability.body.traceability.requests).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: requestId })]),
+    );
+
+    await request(app.getHttpServer())
+      .patch(`/engineering/sprints/${sprintId}`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        status: 'Completed',
+      })
+      .expect(200);
+  });
 });
