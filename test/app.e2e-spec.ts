@@ -728,4 +728,136 @@ describe('AppController (e2e)', () => {
     expect(aiCreated?.request.sourceType).toBe('ai-import');
     expect(aiCreated?.request.sourceRef).toContain('sales-conversation');
   });
+
+  it('/integrations flow should configure providers, sync data and process webhooks', async () => {
+    const admin = await loginWithGoogle({
+      googleId: 'google-integrations-admin-123456',
+      email: 'integrations-admin@example.com',
+      name: 'Integrations Admin',
+    });
+
+    const requestResponse = await request(app.getHttpServer())
+      .post('/requests')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        title: 'Need analytics export',
+        description: 'Customers request export for analytics data.',
+      })
+      .expect(201);
+
+    const requestId = requestResponse.body.request.id as string;
+
+    const featureResponse = await request(app.getHttpServer())
+      .post('/product/features')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        title: 'Analytics export',
+        description: 'Deliver analytics export workflow.',
+        requestIds: [requestId],
+      })
+      .expect(201);
+
+    const featureId = featureResponse.body.feature.id as string;
+
+    const taskResponse = await request(app.getHttpServer())
+      .post('/engineering/tasks')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        title: 'Implement export worker',
+        description: 'Build export worker process.',
+        featureId,
+      })
+      .expect(201);
+
+    const taskId = taskResponse.body.task.id as string;
+
+    await request(app.getHttpServer())
+      .post('/integrations/slack/config')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        webhookUrl: 'https://hooks.slack.com/services/T000/B000/ok',
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .patch(`/requests/${requestId}`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        status: 'Planned',
+      })
+      .expect(200);
+
+    const slackSync = await request(app.getHttpServer())
+      .post('/integrations/slack/sync-events')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({})
+      .expect(201);
+
+    expect(slackSync.body.delivered).toBeGreaterThanOrEqual(1);
+
+    const hubspotSync = await request(app.getHttpServer())
+      .post('/integrations/hubspot/sync')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        companies: [
+          {
+            externalCompanyId: 'hs-company-1',
+            name: 'Acme HubSpot',
+            revenue: 700000,
+          },
+        ],
+        customers: [
+          {
+            externalCustomerId: 'hs-contact-1',
+            name: 'Alice HubSpot',
+            email: 'alice.hubspot@example.com',
+            externalCompanyId: 'hs-company-1',
+          },
+        ],
+      })
+      .expect(201);
+
+    expect(hubspotSync.body.companiesSynced).toBe(1);
+    expect(hubspotSync.body.customersSynced).toBe(1);
+
+    const linearSync = await request(app.getHttpServer())
+      .post('/integrations/linear/sync')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        taskIds: [taskId],
+      })
+      .expect(201);
+
+    expect(linearSync.body.synced).toBe(1);
+
+    const webhookResult = await request(app.getHttpServer())
+      .post('/integrations/linear/webhook/task-status')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        externalIssueId: `linear-${taskId}`,
+        status: 'Done',
+      })
+      .expect(201);
+
+    expect(webhookResult.body.task.status).toBe('Done');
+
+    const slackImport = await request(app.getHttpServer())
+      .post('/integrations/slack/import-message')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        noteExternalId: 'slack-msg-01',
+        text: 'Cliente pediu melhorias no dashboard de vendas e reclamou de bug no filtro de data.',
+      })
+      .expect(201);
+
+    expect(slackImport.body.totalExtractedItems).toBeGreaterThanOrEqual(1);
+
+    const status = await request(app.getHttpServer())
+      .get('/integrations/status')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .expect(200);
+
+    expect(status.body.slackConfigured).toBe(true);
+    expect(status.body.mappingsByProvider.linear).toBeGreaterThanOrEqual(1);
+  });
 });

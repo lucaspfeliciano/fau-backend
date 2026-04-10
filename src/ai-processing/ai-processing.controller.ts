@@ -17,9 +17,6 @@ import { RolesGuard } from '../common/auth/roles.guard';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe';
 import { AiProcessingService } from './ai-processing.service';
 import {
- 
- ,
-
   ImportNotesSchema,
   type ImportNotesInput,
 } from './dto/import-notes.schema';
@@ -31,9 +28,6 @@ import {
 export class AiProcessingController {
   constructor(private readonly aiProcessingService: AiProcessingService) {}
 
-   
-     ,
- 
   @Post('requests/import-notes')
   @Roles(Role.Admin, Role.Editor)
   @ApiOperation({
@@ -45,7 +39,7 @@ export class AiProcessingController {
       example: {
         sourceType: 'meeting-notes',
         noteExternalId: 'meet-2026-04-10-001',
-        text: 'Cliente pediu dashboard por equipe. Relatou bug no filtro avançado que trava ao exportar.',
+        text: 'Cliente pediu dashboard por equipe. Relatou bug no filtro avancado que trava ao exportar.',
         timeoutMs: 1200,
       },
     },

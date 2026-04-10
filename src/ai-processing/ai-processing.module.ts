@@ -8,7 +8,6 @@ import { AiProcessingService } from './ai-processing.service';
 
 @Module({
   imports: [
-    ,
     AccessControlModule,
     DomainEventsModule,
     UsersModule,

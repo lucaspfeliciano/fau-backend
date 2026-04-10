@@ -435,6 +435,10 @@ export class EngineeringService {
     };
   }
 
+  getTaskById(taskId: string, organizationId: string): TaskEntity {
+    return this.findTaskById(taskId, organizationId);
+  }
+
   private syncFeatureExecutionStatus(
     featureId: string,
     actor: AuthenticatedUser,

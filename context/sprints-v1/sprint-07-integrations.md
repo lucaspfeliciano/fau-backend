@@ -64,18 +64,18 @@ No final da sprint, o produto consegue:
 
 ## Checklist de Acompanhamento
 
-- [ ] Implementar arquitetura de conectores separados por provedor.
-- [ ] Implementar configuração e envio de eventos para Slack.
-- [ ] Implementar sincronização básica de `Company` e `Customer` com HubSpot.
-- [ ] Implementar criação/atualização de issue no Linear com `externalId`.
-- [ ] Implementar endpoints operacionais de integrações.
-- [ ] Persistir mapeamento de IDs internos x externos para rastreabilidade.
-- [ ] Implementar consumo de webhooks/eventos externos para atualização automática de status.
-- [ ] Preparar endpoint/fluxo de ingestão de mensagens Slack para AI processing.
-- [ ] Implementar retry básico e logs com correlation id.
-- [ ] Documentar autenticação e payloads no Swagger.
-- [ ] Concluir testes unitários de adaptadores e mapeamentos.
-- [ ] Concluir testes de integração de sync e cenários de erro/retry.
+- [x] Implementar arquitetura de conectores separados por provedor.
+- [x] Implementar configuração e envio de eventos para Slack.
+- [x] Implementar sincronização básica de `Company` e `Customer` com HubSpot.
+- [x] Implementar criação/atualização de issue no Linear com `externalId`.
+- [x] Implementar endpoints operacionais de integrações.
+- [x] Persistir mapeamento de IDs internos x externos para rastreabilidade.
+- [x] Implementar consumo de webhooks/eventos externos para atualização automática de status.
+- [x] Preparar endpoint/fluxo de ingestão de mensagens Slack para AI processing.
+- [x] Implementar retry básico e logs com correlation id.
+- [x] Documentar autenticação e payloads no Swagger.
+- [x] Concluir testes unitários de adaptadores e mapeamentos.
+- [x] Concluir testes de integração de sync e cenários de erro/retry.
 - [ ] Validar critérios de aceite em review da sprint.
 
 ## Critérios de Aceite

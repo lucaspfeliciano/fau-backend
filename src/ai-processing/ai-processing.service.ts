@@ -39,7 +39,6 @@ export class AiProcessingService {
     input: ImportNotesInput,
     actor: AuthenticatedUser,
   ): Promise<ImportNotesResult> {
-    const startedAt = new Date().toISOString();
     this.logger.log(
       `Starting AI notes import for org=${actor.organizationId} source=${input.sourceType}`,
     );
@@ -66,8 +65,6 @@ export class AiProcessingService {
       });
 
       throw new RequestTimeoutException(
-        ,
-      
         'AI provider timeout while processing notes.',
       );
     }
@@ -154,10 +151,8 @@ export class AiProcessingService {
       processedAt: new Date().toISOString(),
       sourceType: input.sourceType,
       noteExternalId: input.noteExternalId,
-        
       totalExtractedItems: results.length,
-        ,
-      )eatedRequests: results.filter((item) => item.action === 'created')
+      createdRequests: results.filter((item) => item.action === 'created')
         .length,
       deduplicatedRequests: results.filter(
         (item) => item.action === 'deduplicated',
@@ -214,16 +209,10 @@ export class AiProcessingService {
         suggestedTags,
       };
     });
-      
-    
   }
 
   private classifyItemType(loweredText: string): AiExtractedItemType {
     if (
-      
-        ,
-      
-    
       /(erro|falha|bug|quebra|quebrou|lento|timeout|trav)/i.test(loweredText)
     ) {
       return AiExtractedItemType.Bug;

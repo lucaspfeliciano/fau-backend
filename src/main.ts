@@ -9,7 +9,7 @@ async function bootstrap() {
   const swaggerConfig = new DocumentBuilder()
     .setTitle('FAU Backend API')
     .setDescription(
-      'Sprint 6 foundation: Auth, Organizations, Teams, Requests, Customers, Companies, Product, Engineering and AI Processing layers',
+      'Sprint 7 foundation: Auth, Organizations, Teams, Requests, Customers, Companies, Product, Engineering, AI Processing and Integrations layers',
     )
     .setVersion('1.0.0')
     .addBearerAuth()

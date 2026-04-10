@@ -8,6 +8,7 @@ import { AccessControlModule } from './common/auth/access-control.module';
 import { DomainEventsModule } from './common/events/domain-events.module';
 import { CustomersModule } from './customers/customers.module';
 import { EngineeringModule } from './engineering/engineering.module';
+import { IntegrationsModule } from './integrations/integrations.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { ProductModule } from './product/product.module';
 import { RequestsModule } from './requests/requests.module';
@@ -28,6 +29,7 @@ import { UsersModule } from './users/users.module';
     TeamsModule,
     AuthModule,
     AiProcessingModule,
+    IntegrationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
