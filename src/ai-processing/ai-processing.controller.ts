@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -52,5 +52,15 @@ export class AiProcessingController {
     @Body(new ZodValidationPipe(ImportNotesSchema)) body: ImportNotesInput,
   ) {
     return this.aiProcessingService.importNotes(body, user);
+  }
+
+  @Get('quality-metrics')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Get AI ingestion quality metrics' })
+  @ApiCreatedResponse({ description: 'AI quality metrics returned.' })
+  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  getQualityMetrics(@CurrentUser() user: AuthenticatedUser) {
+    return this.aiProcessingService.getQualityMetrics(user.organizationId);
   }
 }

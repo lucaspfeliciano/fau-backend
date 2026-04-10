@@ -60,19 +60,19 @@ No final da sprint, o produto entrega:
 
 ## Checklist de Acompanhamento
 
-- [ ] Implementar eventos de notificação para mudanças de status e releases.
-- [ ] Implementar preferências de notificação por organização/time.
-- [ ] Implementar endpoint `GET /roadmap/overview`.
-- [ ] Implementar endpoint `GET /requests/:id/updates`.
-- [ ] Criar registro de release e vínculo com sprints/features entregues.
-- [ ] Implementar consulta de rastreabilidade ponta a ponta para auditoria e suporte.
-- [ ] Validar cenários E2E de propagação automática sem sincronização manual.
-- [ ] Definir métricas de qualidade da ingestão não estruturada.
+- [x] Implementar eventos de notificação para mudanças de status e releases.
+- [x] Implementar preferências de notificação por organização/time.
+- [x] Implementar endpoint `GET /roadmap/overview`.
+- [x] Implementar endpoint `GET /requests/:id/updates`.
+- [x] Criar registro de release e vínculo com sprints/features entregues.
+- [x] Implementar consulta de rastreabilidade ponta a ponta para auditoria e suporte.
+- [x] Validar cenários E2E de propagação automática sem sincronização manual.
+- [x] Definir métricas de qualidade da ingestão não estruturada.
 - [ ] Executar hardening de segurança, performance, erros e logs.
-- [ ] Finalizar documentação Swagger e `.env.example`.
-- [ ] Definir e validar checklist de deploy e rollback.
-- [ ] Concluir testes unitários de orquestração de notificações.
-- [ ] Concluir testes de integração e smoke/E2E do fluxo principal.
+- [x] Finalizar documentação Swagger e `.env.example`.
+- [x] Definir e validar checklist de deploy e rollback.
+- [x] Concluir testes unitários de orquestração de notificações.
+- [x] Concluir testes de integração e smoke/E2E do fluxo principal.
 - [ ] Validar definição de pronto do v1 em review final.
 
 ## Critérios de Aceite

@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { CompaniesService } from '../companies/companies.service';
 import { DomainEventsService } from '../common/events/domain-events.service';
+import type { DomainEvent } from '../common/events/domain-event.interface';
 import { CustomersService } from '../customers/customers.service';
 import type { AuthenticatedUser } from '../common/auth/authenticated-user.interface';
 import type { CreateRequestInput } from './dto/create-request.schema';
@@ -22,6 +23,11 @@ export interface PaginatedRequestsResult {
 export interface SimilarRequestMatch {
   request: RequestEntity;
   score: number;
+}
+
+export interface RequestUpdatesResult {
+  request: RequestEntity;
+  updates: DomainEvent[];
 }
 
 @Injectable()
@@ -459,6 +465,29 @@ export class RequestsService {
     }
 
     return bestMatch;
+  }
+
+  getRequestUpdates(
+    requestId: string,
+    organizationId: string,
+  ): RequestUpdatesResult {
+    const request = this.findOneById(requestId, organizationId);
+    const updates = this.domainEventsService
+      .list()
+      .filter((event) => {
+        if (event.organizationId !== organizationId) {
+          return false;
+        }
+
+        const payload = event.payload as Record<string, unknown>;
+        return payload.requestId === requestId;
+      })
+      .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+
+    return {
+      request,
+      updates,
+    };
   }
 
   private findById(

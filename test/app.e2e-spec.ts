@@ -860,4 +860,172 @@ describe('AppController (e2e)', () => {
     expect(status.body.slackConfigured).toBe(true);
     expect(status.body.mappingsByProvider.linear).toBeGreaterThanOrEqual(1);
   });
+
+  it('/notifications + /releases + /roadmap should provide go-live visibility', async () => {
+    const admin = await loginWithGoogle({
+      googleId: 'google-notifications-admin-123456',
+      email: 'notifications-admin@example.com',
+      name: 'Notifications Admin',
+    });
+
+    await request(app.getHttpServer())
+      .post('/notifications/preferences')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        notifyRequestStatus: true,
+        notifyFeatureStatus: true,
+        notifySprintStatus: true,
+        notifyRelease: true,
+      })
+      .expect(201);
+
+    const requestResponse = await request(app.getHttpServer())
+      .post('/requests')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        title: 'Need launch readiness dashboard',
+        description: 'Leadership wants launch readiness dashboard for go-live.',
+      })
+      .expect(201);
+
+    const requestId = requestResponse.body.request.id as string;
+
+    await request(app.getHttpServer())
+      .patch(`/requests/${requestId}`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({ status: 'Planned' })
+      .expect(200);
+
+    const featureResponse = await request(app.getHttpServer())
+      .post('/product/features')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        title: 'Launch readiness center',
+        description: 'Delivery cockpit with launch indicators.',
+        requestIds: [requestId],
+      })
+      .expect(201);
+
+    const featureId = featureResponse.body.feature.id as string;
+
+    await request(app.getHttpServer())
+      .patch(`/product/features/${featureId}`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({ status: 'In Progress' })
+      .expect(200);
+
+    const sprintResponse = await request(app.getHttpServer())
+      .post('/engineering/sprints')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        name: 'Sprint Launch',
+        startDate: '2026-07-01T00:00:00.000Z',
+        endDate: '2026-07-14T00:00:00.000Z',
+      })
+      .expect(201);
+
+    const sprintId = sprintResponse.body.sprint.id as string;
+
+    const taskResponse = await request(app.getHttpServer())
+      .post('/engineering/tasks')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        title: 'Implement release checklist',
+        description: 'Build release checklist workflow.',
+        featureId,
+        sprintId,
+      })
+      .expect(201);
+
+    const taskId = taskResponse.body.task.id as string;
+
+    await request(app.getHttpServer())
+      .patch(`/engineering/sprints/${sprintId}`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({ status: 'Active' })
+      .expect(200);
+
+    const releaseResponse = await request(app.getHttpServer())
+      .post('/releases')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        version: 'v1.0.0',
+        title: 'Launch Release',
+        notes: 'Production release for v1 go-live.',
+        featureIds: [featureId],
+        sprintIds: [sprintId],
+      })
+      .expect(201);
+
+    const releaseId = releaseResponse.body.id as string;
+    expect(releaseResponse.body.version).toBe('v1.0.0');
+
+    const releases = await request(app.getHttpServer())
+      .get('/releases')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .expect(200);
+
+    expect(releases.body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: releaseId, version: 'v1.0.0' }),
+      ]),
+    );
+
+    const notifications = await request(app.getHttpServer())
+      .get('/notifications')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .expect(200);
+
+    expect(notifications.body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ eventName: 'request.status_changed' }),
+        expect.objectContaining({
+          eventName: 'product.feature_status_changed',
+        }),
+        expect.objectContaining({
+          eventName: 'engineering.sprint_status_changed',
+        }),
+        expect.objectContaining({ eventName: 'release.created' }),
+      ]),
+    );
+
+    const requestUpdates = await request(app.getHttpServer())
+      .get(`/requests/${requestId}/updates`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .expect(200);
+
+    expect(requestUpdates.body.request.id).toBe(requestId);
+    expect(requestUpdates.body.updates.length).toBeGreaterThan(0);
+
+    const roadmap = await request(app.getHttpServer())
+      .get('/roadmap/overview')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .expect(200);
+
+    expect(roadmap.body.counts.releases).toBeGreaterThanOrEqual(1);
+    expect(roadmap.body.recentNotifications.length).toBeGreaterThanOrEqual(1);
+
+    const traceability = await request(app.getHttpServer())
+      .get(`/roadmap/traceability/requests/${requestId}`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .expect(200);
+
+    expect(traceability.body.request.id).toBe(requestId);
+    expect(traceability.body.features).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: featureId })]),
+    );
+    expect(traceability.body.tasks).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: taskId })]),
+    );
+    expect(traceability.body.sprints).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sprint: expect.objectContaining({ id: sprintId }),
+        }),
+      ]),
+    );
+    expect(traceability.body.releases).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: releaseId })]),
+    );
+  });
 });

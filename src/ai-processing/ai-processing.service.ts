@@ -26,9 +26,22 @@ export interface ImportNotesResult {
   items: ProcessedItemResult[];
 }
 
+interface AiQualityMetrics {
+  totalImports: number;
+  totalExtractedItems: number;
+  createdRequests: number;
+  deduplicatedRequests: number;
+  lowConfidenceItems: number;
+  confidenceSum: number;
+}
+
 @Injectable()
 export class AiProcessingService {
   private readonly logger = new Logger(AiProcessingService.name);
+  private readonly qualityMetricsByOrganization = new Map<
+    string,
+    AiQualityMetrics
+  >();
 
   constructor(
     private readonly requestsService: RequestsService,
@@ -181,7 +194,53 @@ export class AiProcessingService {
       `AI import completed for org=${actor.organizationId} created=${response.createdRequests} deduplicated=${response.deduplicatedRequests}`,
     );
 
+    this.updateQualityMetrics(actor.organizationId, response);
+
     return response;
+  }
+
+  getQualityMetrics(organizationId: string) {
+    const metrics = this.qualityMetricsByOrganization.get(organizationId) ?? {
+      totalImports: 0,
+      totalExtractedItems: 0,
+      createdRequests: 0,
+      deduplicatedRequests: 0,
+      lowConfidenceItems: 0,
+      confidenceSum: 0,
+    };
+
+    const averageConfidence =
+      metrics.totalExtractedItems === 0
+        ? 0
+        : Number(
+            (metrics.confidenceSum / metrics.totalExtractedItems).toFixed(4),
+          );
+    const deduplicationRate =
+      metrics.totalExtractedItems === 0
+        ? 0
+        : Number(
+            (
+              metrics.deduplicatedRequests / metrics.totalExtractedItems
+            ).toFixed(4),
+          );
+
+    return {
+      totalImports: metrics.totalImports,
+      totalExtractedItems: metrics.totalExtractedItems,
+      createdRequests: metrics.createdRequests,
+      deduplicatedRequests: metrics.deduplicatedRequests,
+      lowConfidenceItems: metrics.lowConfidenceItems,
+      averageConfidence,
+      deduplicationRate,
+      manualReviewRate:
+        metrics.totalExtractedItems === 0
+          ? 0
+          : Number(
+              (
+                metrics.lowConfidenceItems / metrics.totalExtractedItems
+              ).toFixed(4),
+            ),
+    };
   }
 
   extractItems(rawText: string): AiExtractedItem[] {
@@ -314,5 +373,31 @@ export class AiProcessingService {
         clearTimeout(timer);
       }
     }
+  }
+
+  private updateQualityMetrics(
+    organizationId: string,
+    result: ImportNotesResult,
+  ): void {
+    const current = this.qualityMetricsByOrganization.get(organizationId) ?? {
+      totalImports: 0,
+      totalExtractedItems: 0,
+      createdRequests: 0,
+      deduplicatedRequests: 0,
+      lowConfidenceItems: 0,
+      confidenceSum: 0,
+    };
+
+    current.totalImports += 1;
+    current.totalExtractedItems += result.totalExtractedItems;
+    current.createdRequests += result.createdRequests;
+    current.deduplicatedRequests += result.deduplicatedRequests;
+    current.lowConfidenceItems += result.lowConfidenceItems;
+    current.confidenceSum += result.items.reduce(
+      (acc, item) => acc + item.item.confidence,
+      0,
+    );
+
+    this.qualityMetricsByOrganization.set(organizationId, current);
   }
 }

@@ -90,6 +90,15 @@ export class RequestsController {
     };
   }
 
+  @Get(':id/updates')
+  @ApiOperation({ summary: 'Get request updates history' })
+  @ApiParam({ name: 'id', description: 'Request id' })
+  @ApiOkResponse({ description: 'Returns request updates history.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  getUpdates(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.requestsService.getRequestUpdates(id, user.organizationId);
+  }
+
   @Patch(':id')
   @Roles(Role.Admin, Role.Editor)
   @ApiOperation({ summary: 'Update request by id' })
