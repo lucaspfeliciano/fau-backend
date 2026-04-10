@@ -62,17 +62,17 @@ No final da sprint, Product consegue:
 
 ## Checklist de Acompanhamento
 
-- [ ] Modelar entidades `Initiative` e `Feature`.
-- [ ] Implementar APIs de iniciativas e features.
-- [ ] Implementar vínculo entre feature e requests.
-- [ ] Implementar regra de priorização inicial.
-- [ ] Implementar consulta de rastreabilidade feature -> requests -> customers.
-- [ ] Implementar propagação inicial de status feature -> requests.
-- [ ] Preservar trilha de origem das requests relacionadas na feature.
-- [ ] Implementar histórico básico de mudança de status.
-- [ ] Documentar fluxo request -> feature no Swagger.
-- [ ] Concluir testes unitários de priorização e vínculo.
-- [ ] Concluir testes de integração request -> feature -> initiative.
+- [x] Modelar entidades `Initiative` e `Feature`.
+- [x] Implementar APIs de iniciativas e features.
+- [x] Implementar vínculo entre feature e requests.
+- [x] Implementar regra de priorização inicial.
+- [x] Implementar consulta de rastreabilidade feature -> requests -> customers.
+- [x] Implementar propagação inicial de status feature -> requests.
+- [x] Preservar trilha de origem das requests relacionadas na feature.
+- [x] Implementar histórico básico de mudança de status.
+- [x] Documentar fluxo request -> feature no Swagger.
+- [x] Concluir testes unitários de priorização e vínculo.
+- [x] Concluir testes de integração request -> feature -> initiative.
 - [ ] Validar critérios de aceite em review da sprint.
 
 ## Critérios de Aceite

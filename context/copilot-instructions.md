@@ -355,3 +355,74 @@ These inputs should be transformed into:
 - Existing request matches (deduplication)
 
 This is a key differentiator of the platform.
+
+## ⚡ Core Principle: Event-Driven System
+
+The system must be event-driven.
+
+Every important action should generate an event.
+
+Examples:
+
+- RequestCreated
+- RequestUpvoted
+- FeatureCreated
+- TaskUpdated
+- SprintCompleted
+
+These events must trigger automatic updates across the system.
+
+Example:
+
+- TaskUpdated → triggers FeatureProgressUpdated → triggers RequestStatusUpdated → triggers Notification
+
+This ensures decoupling and scalability.
+
+## 🧮 Core Principle: Smart Prioritization
+
+Prioritization must not rely only on votes.
+
+The system must support a prioritization score based on:
+
+- Number of requests (votes)
+- Customer revenue
+- Customer importance (tier)
+- Churn risk
+- Strategic tags
+
+Each request and feature should have a dynamic priority score.
+
+This score must help Product teams decide what to build next.
+
+## 🔍 Core Principle: Intelligent Deduplication
+
+The system must detect similar requests automatically.
+
+It should:
+
+- Compare semantic meaning (not just text)
+- Suggest similar existing requests in real-time
+- Auto-link or merge duplicates when confidence is high
+
+When duplicates are found:
+
+- Increase votes
+- Link customers
+- Preserve context
+
+This reduces noise and improves prioritization accuracy.
+
+## 🔗 Core Principle: External Tools as Extensions
+
+External tools (Linear, HubSpot, Slack) must not be the source of truth.
+
+This system is the source of truth.
+
+Integrations should:
+
+- Sync data bidirectionally when needed
+- Mirror engineering tasks from Linear
+- Pull customer data from HubSpot
+- Send notifications via Slack
+
+But all relationships and logic must live inside this system.

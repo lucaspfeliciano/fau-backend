@@ -429,4 +429,120 @@ describe('AppController (e2e)', () => {
 
     expect(unlinkedCompany.body.request.companyIds).not.toContain(companyAId);
   });
+
+  it('/product flow should create initiative/feature, link request and expose traceability', async () => {
+    const admin = await loginWithGoogle({
+      googleId: 'google-product-admin-123456',
+      email: 'product-admin@example.com',
+      name: 'Product Admin',
+    });
+
+    const companyResponse = await request(app.getHttpServer())
+      .post('/companies')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        name: 'Roadmap Company',
+      })
+      .expect(201);
+
+    const companyId = companyResponse.body.company.id as string;
+
+    const customerResponse = await request(app.getHttpServer())
+      .post('/customers')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        name: 'Roadmap Customer',
+        email: 'roadmap-customer@example.com',
+        companyId,
+      })
+      .expect(201);
+
+    const customerId = customerResponse.body.customer.id as string;
+
+    const requestResponse = await request(app.getHttpServer())
+      .post('/requests')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        title: 'Need enterprise Slack workflow',
+        description:
+          'Enterprise customers need better Slack notification workflows.',
+        tags: ['enterprise', 'strategic'],
+        customerIds: [customerId],
+        companyIds: [companyId],
+      })
+      .expect(201);
+
+    const requestId = requestResponse.body.request.id as string;
+
+    const initiativeResponse = await request(app.getHttpServer())
+      .post('/product/initiatives')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        title: 'Q2 Integrations',
+        description: 'Strategic integrations for Q2.',
+        status: 'Planned',
+      })
+      .expect(201);
+
+    const initiativeId = initiativeResponse.body.initiative.id as string;
+
+    const featureResponse = await request(app.getHttpServer())
+      .post('/product/features')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        title: 'Slack alerts v2',
+        description: 'Configurable Slack alert templates.',
+        initiativeId,
+        requestIds: [requestId],
+      })
+      .expect(201);
+
+    const featureId = featureResponse.body.feature.id as string;
+
+    expect(featureResponse.body.feature.requestSources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          requestId,
+          sourceType: 'manual',
+        }),
+      ]),
+    );
+
+    await request(app.getHttpServer())
+      .post(`/product/features/${featureId}/requests/${requestId}`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .expect(201);
+
+    const featureUpdated = await request(app.getHttpServer())
+      .patch(`/product/features/${featureId}`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        status: 'In Progress',
+      })
+      .expect(200);
+
+    expect(featureUpdated.body.feature.status).toBe('In Progress');
+
+    const requestAfterPropagation = await request(app.getHttpServer())
+      .get(`/requests/${requestId}`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .expect(200);
+
+    expect(requestAfterPropagation.body.request.status).toBe('In Progress');
+
+    const traceabilityResponse = await request(app.getHttpServer())
+      .get(`/product/features/${featureId}/traceability`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .expect(200);
+
+    expect(traceabilityResponse.body.requests).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: requestId })]),
+    );
+    expect(traceabilityResponse.body.impactedCustomers).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: customerId })]),
+    );
+    expect(traceabilityResponse.body.impactedCompanies).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: companyId })]),
+    );
+  });
 });

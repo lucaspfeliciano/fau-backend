@@ -363,6 +363,64 @@ export class RequestsService {
     return request;
   }
 
+  propagateStatusFromFeature(
+    requestIds: string[],
+    status: RequestStatus,
+    actor: AuthenticatedUser,
+    featureId: string,
+  ): RequestEntity[] {
+    const updatedRequests: RequestEntity[] = [];
+    const uniqueRequestIds = this.uniqueValues(requestIds);
+
+    for (const requestId of uniqueRequestIds) {
+      const request = this.findById(requestId, actor.organizationId, false);
+
+      if (request.status === status) {
+        updatedRequests.push(request);
+        continue;
+      }
+
+      const previousStatus = request.status;
+      request.status = status;
+      const changedAt = new Date().toISOString();
+      request.statusHistory.push({
+        from: previousStatus,
+        to: status,
+        changedBy: actor.id,
+        changedAt,
+      });
+      request.updatedAt = changedAt;
+
+      this.domainEventsService.publish({
+        name: 'request.status_changed',
+        occurredAt: changedAt,
+        actorId: actor.id,
+        organizationId: actor.organizationId,
+        payload: {
+          requestId: request.id,
+          from: previousStatus,
+          to: status,
+          sourceFeatureId: featureId,
+          propagation: 'feature_status',
+        },
+      });
+
+      this.domainEventsService.publish({
+        name: 'request.updated',
+        occurredAt: changedAt,
+        actorId: actor.id,
+        organizationId: actor.organizationId,
+        payload: {
+          requestId: request.id,
+        },
+      });
+
+      updatedRequests.push(request);
+    }
+
+    return updatedRequests;
+  }
+
   private findById(
     requestId: string,
     organizationId: string,
