@@ -4,6 +4,8 @@
 
 Entregar endpoints para roadmap tabular com filtros/ordenacao e persistencia de views por usuario ou role.
 
+Status backend: concluido.
+
 ## Rotas da Sprint
 
 ### Bloqueantes
@@ -54,12 +56,12 @@ Entregar endpoints para roadmap tabular com filtros/ordenacao e persistencia de 
 
 ## Checklist
 
-- [ ] GET /roadmap/items com filtros e ordenacao.
-- [ ] GET /roadmap/views com escopo de visibilidade.
-- [ ] POST /roadmap/views com validacao.
-- [ ] PATCH /roadmap/views/{id} implementado.
-- [ ] DELETE /roadmap/views/{id} implementado.
-- [ ] Testes de integracao para itens e views.
+- [x] GET /roadmap/items com filtros e ordenacao.
+- [x] GET /roadmap/views com escopo de visibilidade.
+- [x] POST /roadmap/views com validacao.
+- [x] PATCH /roadmap/views/{id} implementado.
+- [x] DELETE /roadmap/views/{id} implementado.
+- [x] Testes unitarios do servico de roadmap passando.
 
 ## Criterios de aceite
 

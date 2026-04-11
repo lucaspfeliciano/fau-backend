@@ -10,15 +10,28 @@ import { UsersModule } from '../users/users.module';
 import { HubSpotConnector } from './connectors/hubspot.connector';
 import { LinearConnector } from './connectors/linear.connector';
 import { SlackConnector } from './connectors/slack.connector';
+import { FirefliesConnector } from './connectors/fireflies.connector';
 import { IntegrationsController } from './integrations.controller';
 import { IntegrationCursorsRepository } from './repositories/integration-cursors.repository';
-import { IntegrationCursorModel, IntegrationCursorSchema } from './repositories/integration-cursor.schema';
+import {
+  IntegrationCursorModel,
+  IntegrationCursorSchema,
+} from './repositories/integration-cursor.schema';
 import { IntegrationConfigsRepository } from './repositories/integration-configs.repository';
-import { IntegrationConfigModel, IntegrationConfigSchema } from './repositories/integration-config.schema';
+import {
+  IntegrationConfigModel,
+  IntegrationConfigSchema,
+} from './repositories/integration-config.schema';
 import { IntegrationMetricsRepository } from './repositories/integration-metrics.repository';
-import { IntegrationMetricModel, IntegrationMetricSchema } from './repositories/integration-metric.schema';
+import {
+  IntegrationMetricModel,
+  IntegrationMetricSchema,
+} from './repositories/integration-metric.schema';
 import { ExternalMappingsRepository } from './repositories/external-mappings.repository';
-import { ExternalMappingModel, ExternalMappingSchema } from './repositories/external-mapping.schema';
+import {
+  ExternalMappingModel,
+  ExternalMappingSchema,
+} from './repositories/external-mapping.schema';
 import { IntegrationsService } from './integrations.service';
 
 @Module({
@@ -52,6 +65,7 @@ import { IntegrationsService } from './integrations.service';
   controllers: [IntegrationsController],
   providers: [
     IntegrationsService,
+    FirefliesConnector,
     SlackConnector,
     HubSpotConnector,
     LinearConnector,

@@ -1,18 +1,33 @@
-import { Injectable, Logger, RequestTimeoutException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  RequestTimeoutException,
+} from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import type { AuthenticatedUser } from '../common/auth/authenticated-user.interface';
 import { DomainEventsService } from '../common/events/domain-events.service';
 import { RequestSourceType } from '../requests/entities/request-source-type.enum';
 import type { RequestEntity } from '../requests/entities/request.entity';
 import { RequestsService } from '../requests/requests.service';
+import type { ApproveReviewQueueBatchInput } from './dto/approve-review-queue-batch.schema';
 import type { ImportNotesInput } from './dto/import-notes.schema';
+import type { MatchSimilarRequestsInput } from './dto/match-similar-requests.schema';
+import type { QueryReviewQueueInput } from './dto/query-review-queue.schema';
 import { AiExtractedItemType } from './entities/ai-extracted-item-type.enum';
 import type { AiExtractedItem } from './entities/ai-extracted-item.interface';
+import type { AiReviewQueueItemEntity } from './entities/ai-review-queue-item.entity';
+import { AiReviewQueueStatus } from './entities/ai-review-queue-status.enum';
+import { AiReviewQueueSuggestedAction } from './entities/ai-review-queue-suggested-action.enum';
+import { AiReviewQueueRepository } from './repositories/ai-review-queue.repository';
 
 interface ProcessedItemResult {
   item: AiExtractedItem;
-  action: 'created' | 'deduplicated';
+  action: 'created' | 'deduplicated' | 'queued';
   similarity?: number;
-  request: RequestEntity;
+  request?: RequestEntity;
+  queueItemId?: string;
 }
 
 export interface ImportNotesResult {
@@ -22,8 +37,33 @@ export interface ImportNotesResult {
   totalExtractedItems: number;
   createdRequests: number;
   deduplicatedRequests: number;
+  queuedForReviewItems: number;
   lowConfidenceItems: number;
   items: ProcessedItemResult[];
+}
+
+export interface SimilarMatchItem {
+  requestId: string;
+  similarityScore: number;
+  reason: string;
+}
+
+export interface ReviewQueueListResult {
+  items: AiReviewQueueItemEntity[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface ReviewQueueBatchApprovalResult {
+  approved: number;
+  failed: number;
+  results: {
+    itemId: string;
+    status: 'approved' | 'failed';
+    reason?: string;
+  }[];
 }
 
 interface AiQualityMetrics {
@@ -46,6 +86,7 @@ export class AiProcessingService {
   constructor(
     private readonly requestsService: RequestsService,
     private readonly domainEventsService: DomainEventsService,
+    private readonly aiReviewQueueRepository: AiReviewQueueRepository,
   ) {}
 
   async importNotes(
@@ -90,6 +131,24 @@ export class AiProcessingService {
         extractedItem.normalizedText,
         0.32,
       );
+
+      if (extractedItem.requiresHumanReview) {
+        const queued = await this.enqueueReviewItem(
+          extractedItem,
+          input,
+          actor,
+          similar,
+        );
+
+        results.push({
+          item: extractedItem,
+          action: 'queued',
+          similarity: similar ? Number(similar.score.toFixed(4)) : undefined,
+          queueItemId: queued.id,
+        });
+
+        continue;
+      }
 
       if (similar) {
         const voted = await this.requestsService.vote(
@@ -173,9 +232,10 @@ export class AiProcessingService {
       deduplicatedRequests: results.filter(
         (item) => item.action === 'deduplicated',
       ).length,
-      lowConfidenceItems: results.filter(
-        (item) => item.item.requiresHumanReview,
-      ).length,
+      queuedForReviewItems: results.filter((item) => item.action === 'queued')
+        .length,
+      lowConfidenceItems: results.filter((item) => item.action === 'queued')
+        .length,
       items: results,
     };
 
@@ -190,16 +250,236 @@ export class AiProcessingService {
         totalExtractedItems: response.totalExtractedItems,
         createdRequests: response.createdRequests,
         deduplicatedRequests: response.deduplicatedRequests,
+        queuedForReviewItems: response.queuedForReviewItems,
       },
     });
 
     this.logger.log(
-      `AI import completed for org=${actor.organizationId} created=${response.createdRequests} deduplicated=${response.deduplicatedRequests}`,
+      `AI import completed for org=${actor.organizationId} created=${response.createdRequests} deduplicated=${response.deduplicatedRequests} queued=${response.queuedForReviewItems}`,
     );
 
     this.updateQualityMetrics(actor.organizationId, response);
 
     return response;
+  }
+
+  async matchSimilarRequests(
+    input: MatchSimilarRequestsInput,
+    actor: AuthenticatedUser,
+  ): Promise<{ matches: SimilarMatchItem[] }> {
+    if (input.organizationId && input.organizationId !== actor.organizationId) {
+      this.logger.warn(
+        `Ignoring organizationId override in match-similar for user=${actor.id}`,
+      );
+    }
+
+    const organizationRequests = (
+      await this.requestsService.list(
+        {
+          page: 1,
+          limit: 1000,
+          includeArchived: false,
+        },
+        actor.organizationId,
+      )
+    ).items;
+
+    const normalizedText = input.text.trim().toLowerCase();
+    if (!normalizedText) {
+      return { matches: [] };
+    }
+
+    const threshold = 0.2;
+
+    const matches = organizationRequests
+      .map((request) => {
+        const referenceText = `${request.title} ${request.description}`;
+        const { score, overlaps } = this.calculateTextSimilarityWithReasons(
+          normalizedText,
+          referenceText,
+        );
+
+        return {
+          request,
+          score,
+          overlaps,
+        };
+      })
+      .filter((item) => item.score >= threshold)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10)
+      .map((item) => ({
+        requestId: item.request.id,
+        similarityScore: Number(item.score.toFixed(4)),
+        reason:
+          item.overlaps.length > 0
+            ? `Sobreposicao de termos: ${item.overlaps.join(', ')}`
+            : 'Similaridade semantica relevante.',
+      }));
+
+    return {
+      matches,
+    };
+  }
+
+  async listReviewQueue(
+    query: QueryReviewQueueInput,
+    organizationId: string,
+  ): Promise<ReviewQueueListResult> {
+    const allItems = await this.aiReviewQueueRepository.listByOrganization(
+      organizationId,
+      query.status,
+    );
+
+    const page = query.page;
+    const limit = query.limit;
+    const total = allItems.length;
+    const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+    const offset = (page - 1) * limit;
+
+    return {
+      items: allItems.slice(offset, offset + limit),
+      page,
+      limit,
+      total,
+      totalPages,
+    };
+  }
+
+  async approveReviewQueueItem(
+    itemId: string,
+    actor: AuthenticatedUser,
+  ): Promise<AiReviewQueueItemEntity> {
+    const item = await this.findReviewQueueItem(itemId, actor.organizationId);
+
+    if (item.status !== AiReviewQueueStatus.Pending) {
+      throw new BadRequestException('Review queue item is not pending.');
+    }
+
+    let resultingRequestId: string | undefined;
+
+    if (
+      item.suggestedAction === AiReviewQueueSuggestedAction.Deduplicate &&
+      item.matchedRequestId
+    ) {
+      const voted = await this.requestsService.vote(
+        item.matchedRequestId,
+        actor,
+      );
+      resultingRequestId = voted.id;
+    } else {
+      const created = await this.requestsService.create(
+        {
+          title: this.buildTitle(item.rawExcerpt),
+          description: item.normalizedText,
+          sourceType: item.sourceType,
+          sourceRef: JSON.stringify({
+            reviewQueueItemId: item.id,
+            confidence: item.confidence,
+            approvedAt: new Date().toISOString(),
+          }),
+          tags: [...item.suggestedTags, 'ai-reviewed'],
+        },
+        actor,
+      );
+
+      resultingRequestId = created.id;
+    }
+
+    item.status = AiReviewQueueStatus.Approved;
+    item.resolvedAt = new Date().toISOString();
+    item.resolvedBy = actor.id;
+    item.resultingRequestId = resultingRequestId;
+
+    await this.aiReviewQueueRepository.update(item);
+
+    this.domainEventsService.publish({
+      name: 'ai.review_queue_item_approved',
+      occurredAt: item.resolvedAt,
+      actorId: actor.id,
+      organizationId: actor.organizationId,
+      payload: {
+        itemId: item.id,
+        resultingRequestId,
+      },
+    });
+
+    return item;
+  }
+
+  async rejectReviewQueueItem(
+    itemId: string,
+    actor: AuthenticatedUser,
+  ): Promise<AiReviewQueueItemEntity> {
+    const item = await this.findReviewQueueItem(itemId, actor.organizationId);
+
+    if (item.status !== AiReviewQueueStatus.Pending) {
+      throw new BadRequestException('Review queue item is not pending.');
+    }
+
+    item.status = AiReviewQueueStatus.Rejected;
+    item.resolvedAt = new Date().toISOString();
+    item.resolvedBy = actor.id;
+
+    await this.aiReviewQueueRepository.update(item);
+
+    this.domainEventsService.publish({
+      name: 'ai.review_queue_item_rejected',
+      occurredAt: item.resolvedAt,
+      actorId: actor.id,
+      organizationId: actor.organizationId,
+      payload: {
+        itemId: item.id,
+      },
+    });
+
+    return item;
+  }
+
+  async approveReviewQueueBatch(
+    input: ApproveReviewQueueBatchInput,
+    actor: AuthenticatedUser,
+  ): Promise<ReviewQueueBatchApprovalResult> {
+    const uniqueItemIds = Array.from(new Set(input.itemIds));
+    const results: ReviewQueueBatchApprovalResult['results'] = [];
+
+    let approved = 0;
+    let failed = 0;
+
+    for (const itemId of uniqueItemIds) {
+      try {
+        await this.approveReviewQueueItem(itemId, actor);
+        approved += 1;
+        results.push({
+          itemId,
+          status: 'approved',
+        });
+      } catch (error) {
+        failed += 1;
+        results.push({
+          itemId,
+          status: 'failed',
+          reason: error instanceof Error ? error.message : 'Unexpected error',
+        });
+      }
+    }
+
+    this.domainEventsService.publish({
+      name: 'ai.review_queue_batch_approved',
+      occurredAt: new Date().toISOString(),
+      actorId: actor.id,
+      organizationId: actor.organizationId,
+      payload: {
+        approved,
+        failed,
+      },
+    });
+
+    return {
+      approved,
+      failed,
+      results,
+    };
   }
 
   getQualityMetrics(organizationId: string) {
@@ -297,7 +577,7 @@ export class AiProcessingService {
   ): string[] {
     const tags = new Set<string>([type]);
 
-    if (/(integra|slack|hubspot|linear|api)/i.test(loweredText)) {
+    if (/(integra|slack|hubspot|linear|api|fireflies)/i.test(loweredText)) {
       tags.add('integrations');
     }
 
@@ -403,4 +683,102 @@ export class AiProcessingService {
 
     this.qualityMetricsByOrganization.set(organizationId, current);
   }
-}
+
+  private async enqueueReviewItem(
+    extractedItem: AiExtractedItem,
+    input: ImportNotesInput,
+    actor: AuthenticatedUser,
+    similar:
+      | Awaited<ReturnType<RequestsService['findMostSimilarByText']>>
+      | undefined,
+  ): Promise<AiReviewQueueItemEntity> {
+    const now = new Date().toISOString();
+
+    const queueItem: AiReviewQueueItemEntity = {
+      id: randomUUID(),
+      organizationId: actor.organizationId,
+      sourceType: input.sourceType,
+      noteExternalId: input.noteExternalId,
+      itemType: extractedItem.type,
+      rawExcerpt: extractedItem.rawExcerpt,
+      normalizedText: extractedItem.normalizedText,
+      confidence: extractedItem.confidence,
+      suggestedTags: extractedItem.suggestedTags,
+      suggestedAction: similar
+        ? AiReviewQueueSuggestedAction.Deduplicate
+        : AiReviewQueueSuggestedAction.Create,
+      matchedRequestId: similar?.request.id,
+      matchedSimilarity: similar ? Number(similar.score.toFixed(4)) : undefined,
+      status: AiReviewQueueStatus.Pending,
+      createdAt: now,
+    };
+
+    await this.aiReviewQueueRepository.insert(queueItem);
+
+    this.domainEventsService.publish({
+      name: 'ai.review_queue_item_created',
+      occurredAt: now,
+      actorId: actor.id,
+      organizationId: actor.organizationId,
+      payload: {
+        itemId: queueItem.id,
+        sourceType: queueItem.sourceType,
+        confidence: queueItem.confidence,
+        suggestedAction: queueItem.suggestedAction,
+      },
+    });
+
+    return queueItem;
+  }
+
+  private async findReviewQueueItem(
+    itemId: string,
+    organizationId: string,
+  ): Promise<AiReviewQueueItemEntity> {
+    const item = await this.aiReviewQueueRepository.findById(
+      itemId,
+      organizationId,
+    );
+
+    if (!item) {
+      throw new NotFoundException('Review queue item not found.');
+    }
+
+    return item;
+  }
+
+  private calculateTextSimilarityWithReasons(
+    a: string,
+    b: string,
+  ): { score: number; overlaps: string[] } {
+    const tokensA = new Set(this.tokenize(a));
+    const tokensB = new Set(this.tokenize(b));
+
+    if (tokensA.size === 0 || tokensB.size === 0) {
+      return {
+        score: 0,
+        overlaps: [],
+      };
+    }
+
+    const overlaps: string[] = [];
+    for (const token of tokensA) {
+      if (tokensB.has(token)) {
+        overlaps.push(token);
+      }
+    }
+
+    const unionSize = new Set([...tokensA, ...tokensB]).size;
+
+    return {
+      score: unionSize === 0 ? 0 : overlaps.length / unionSize,
+      overlaps: overlaps.slice(0, 5),
+    };
+  }
+
+  private tokenize(text: string): string[] {
+    return text
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/gi, ' ')
+      .split(/\s+/)
+      .map((token) => token.tri

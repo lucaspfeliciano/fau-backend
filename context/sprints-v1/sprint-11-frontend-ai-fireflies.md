@@ -4,6 +4,8 @@
 
 Destravar setup de integracao Fireflies e fluxos de dedupe semantico com revisao humana no frontend.
 
+Status backend: concluido.
+
 ## Rotas da Sprint
 
 ### Bloqueantes
@@ -57,14 +59,14 @@ Destravar setup de integracao Fireflies e fluxos de dedupe semantico com revisao
 
 ## Checklist
 
-- [ ] POST /integrations/fireflies/config implementado.
-- [ ] GET /integrations/fireflies/config implementado.
-- [ ] POST /integrations/fireflies/import-transcript implementado.
-- [ ] POST /ai/requests/match-similar implementado.
-- [ ] GET /ai/requests/review-queue implementado.
-- [ ] POST /ai/requests/review-queue/{itemId}/approve implementado.
-- [ ] POST /ai/requests/review-queue/{itemId}/reject implementado.
-- [ ] POST /ai/requests/review-queue/approve-batch implementado.
+- [x] POST /integrations/fireflies/config implementado.
+- [x] GET /integrations/fireflies/config implementado.
+- [x] POST /integrations/fireflies/import-transcript implementado.
+- [x] POST /ai/requests/match-similar implementado.
+- [x] GET /ai/requests/review-queue implementado.
+- [x] POST /ai/requests/review-queue/{itemId}/approve implementado.
+- [x] POST /ai/requests/review-queue/{itemId}/reject implementado.
+- [x] POST /ai/requests/review-queue/approve-batch implementado.
 
 ## Criterios de aceite
 

@@ -17,6 +17,14 @@ import { Roles } from '../common/auth/roles.decorator';
 import { RolesGuard } from '../common/auth/roles.guard';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe';
 import {
+  FirefliesConfigSchema,
+  type FirefliesConfigInput,
+} from './dto/fireflies-config.schema';
+import {
+  FirefliesImportTranscriptSchema,
+  type FirefliesImportTranscriptInput,
+} from './dto/fireflies-import-transcript.schema';
+import {
   HubSpotSyncSchema,
   type HubSpotSyncInput,
 } from './dto/hubspot-sync.schema';
@@ -44,6 +52,64 @@ import { IntegrationsService } from './integrations.service';
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class IntegrationsController {
   constructor(private readonly integrationsService: IntegrationsService) {}
+
+  @Post('fireflies/config')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Configure Fireflies credentials and defaults' })
+  @ApiBody({
+    schema: {
+      example: {
+        apiKey: 'ff_prod_123456789',
+        workspaceId: 'workspace-42',
+        projectId: 'project-alpha',
+        defaultLanguage: 'pt-BR',
+      },
+    },
+  })
+  @ApiCreatedResponse({ description: 'Fireflies configuration saved.' })
+  configureFireflies(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body(new ZodValidationPipe(FirefliesConfigSchema))
+    body: FirefliesConfigInput,
+  ) {
+    return this.integrationsService.configureFireflies(body, user);
+  }
+
+  @Get('fireflies/config')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Get current Fireflies configuration summary' })
+  @ApiOkResponse({ description: 'Returns safe Fireflies configuration view.' })
+  getFirefliesConfig(@CurrentUser() user: AuthenticatedUser) {
+    return this.integrationsService.getFirefliesConfig(user.organizationId);
+  }
+
+  @Post('fireflies/import-transcript')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({
+    summary: 'Import Fireflies transcript into AI processing pipeline',
+  })
+  @ApiBody({
+    schema: {
+      example: {
+        externalTranscriptId: 'ff-tr-0091',
+        title: 'Call with enterprise customer',
+        transcriptText:
+          'Cliente pediu dashboard por squad e reclamou de timeout no export CSV.',
+        happenedAt: '2026-04-10T12:00:00.000Z',
+        participants: ['joao@empresa.com', 'alice@acme.com'],
+      },
+    },
+  })
+  @ApiCreatedResponse({
+    description: 'Transcript imported and sent to AI extraction flow.',
+  })
+  importFirefliesTranscript(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body(new ZodValidationPipe(FirefliesImportTranscriptSchema))
+    body: FirefliesImportTranscriptInput,
+  ) {
+    return this.integrationsService.importFirefliesTranscript(body, user);
+  }
 
   @Post('slack/config')
   @Roles(Role.Admin, Role.Editor)

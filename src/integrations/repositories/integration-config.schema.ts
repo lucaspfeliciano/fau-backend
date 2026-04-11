@@ -18,6 +18,18 @@ export class IntegrationConfigModel {
   @Prop({ type: String })
   defaultChannel?: string;
 
+  @Prop({ type: String })
+  apiKey?: string;
+
+  @Prop({ type: String })
+  workspaceId?: string;
+
+  @Prop({ type: String })
+  projectId?: string;
+
+  @Prop({ type: String })
+  defaultLanguage?: string;
+
   @Prop({ type: String, required: true })
   updatedAt!: string;
 }

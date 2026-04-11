@@ -7,11 +7,17 @@ import { CustomersService } from '../customers/customers.service';
 import { EngineeringService } from '../engineering/engineering.service';
 import { AiProcessingService } from '../ai-processing/ai-processing.service';
 import { RequestSourceType } from '../requests/entities/request-source-type.enum';
+import type { FirefliesConfigInput } from './dto/fireflies-config.schema';
+import type { FirefliesImportTranscriptInput } from './dto/fireflies-import-transcript.schema';
 import type { HubSpotSyncInput } from './dto/hubspot-sync.schema';
 import type { LinearSyncInput } from './dto/linear-sync.schema';
 import type { LinearWebhookTaskStatusInput } from './dto/linear-webhook-task-status.schema';
 import type { SlackImportMessageInput } from './dto/slack-import-message.schema';
 import type { SlackConfigInput } from './dto/slack-config.schema';
+import {
+  FirefliesConnector,
+  type FirefliesConfig,
+} from './connectors/fireflies.connector';
 import { HubSpotConnector } from './connectors/hubspot.connector';
 import { LinearConnector } from './connectors/linear.connector';
 import { SlackConnector, type SlackConfig } from './connectors/slack.connector';
@@ -33,6 +39,7 @@ export class IntegrationsService {
 
   constructor(
     private readonly domainEventsService: DomainEventsService,
+    private readonly firefliesConnector: FirefliesConnector,
     private readonly slackConnector: SlackConnector,
     private readonly hubspotConnector: HubSpotConnector,
     private readonly linearConnector: LinearConnector,
@@ -45,6 +52,120 @@ export class IntegrationsService {
     private readonly integrationMetricsRepository: IntegrationMetricsRepository,
     private readonly integrationCursorsRepository: IntegrationCursorsRepository,
   ) {}
+
+  async configureFireflies(
+    input: FirefliesConfigInput,
+    actor: AuthenticatedUser,
+  ) {
+    await this.integrationConfigsRepository.upsertFirefliesConfig(
+      actor.organizationId,
+      {
+        apiKey: input.apiKey,
+        workspaceId: input.workspaceId,
+        projectId: input.projectId,
+        defaultLanguage: input.defaultLanguage,
+      },
+    );
+
+    return {
+      configured: true,
+      organizationId: actor.organizationId,
+      workspaceId: input.workspaceId,
+      projectId: input.projectId,
+      defaultLanguage: input.defaultLanguage,
+      apiKeyMasked: this.maskSecret(input.apiKey),
+    };
+  }
+
+  async getFirefliesConfig(organizationId: string) {
+    const config =
+      await this.integrationConfigsRepository.findFirefliesConfig(
+        organizationId,
+      );
+
+    if (!config) {
+      return {
+        configured: false,
+      };
+    }
+
+    return {
+      configured: true,
+      workspaceId: config.workspaceId,
+      projectId: config.projectId,
+      defaultLanguage: config.defaultLanguage,
+      updatedAt: config.updatedAt,
+      apiKeyMasked: this.maskSecret(config.apiKey),
+    };
+  }
+
+  async importFirefliesTranscript(
+    input: FirefliesImportTranscriptInput,
+    actor: AuthenticatedUser,
+  ) {
+    const configRecord =
+      await this.integrationConfigsRepository.findFirefliesConfig(
+        actor.organizationId,
+      );
+
+    if (!configRecord) {
+      throw new NotFoundException(
+        'Fireflies integration is not configured for this organization.',
+      );
+    }
+
+    const config: FirefliesConfig = {
+      apiKey: configRecord.apiKey,
+      workspaceId: configRecord.workspaceId,
+      projectId: configRecord.projectId,
+      defaultLanguage: configRecord.defaultLanguage,
+    };
+
+    const correlationId = randomUUID();
+
+    const connectorResult = await this.executeWithRetry(
+      actor.organizationId,
+      IntegrationProvider.Fireflies,
+      correlationId,
+      () => this.firefliesConnector.importTranscript(config, input),
+    );
+
+    await this.registerMapping({
+      organizationId: actor.organizationId,
+      provider: IntegrationProvider.Fireflies,
+      entityType: 'transcript',
+      internalId: input.externalTranscriptId,
+      externalId: connectorResult.externalImportId,
+    });
+
+    const aiResult = await this.aiProcessingService.importNotes(
+      {
+        sourceType: RequestSourceType.FirefliesTranscript,
+        noteExternalId: input.externalTranscriptId,
+        text: input.transcriptText,
+      },
+      actor,
+    );
+
+    this.domainEventsService.publish({
+      name: 'integrations.fireflies_transcript_imported',
+      occurredAt: new Date().toISOString(),
+      actorId: actor.id,
+      organizationId: actor.organizationId,
+      payload: {
+        externalTranscriptId: input.externalTranscriptId,
+        importId: connectorResult.externalImportId,
+        extractedItemsCount: aiResult.totalExtractedItems,
+        queuedForReviewCount: aiResult.queuedForReviewItems,
+      },
+    });
+
+    return {
+      importId: connectorResult.externalImportId,
+      extractedItemsCount: aiResult.totalExtractedItems,
+      queuedForReviewCount: aiResult.queuedForReviewItems,
+    };
+  }
 
   async configureSlack(input: SlackConfigInput, actor: AuthenticatedUser) {
     await this.integrationConfigsRepository.upsertSlackConfig(
@@ -63,9 +184,10 @@ export class IntegrationsService {
   }
 
   async syncSlackStatusEvents(actor: AuthenticatedUser) {
-    const configRecord = await this.integrationConfigsRepository.findSlackConfig(
-      actor.organizationId,
-    );
+    const configRecord =
+      await this.integrationConfigsRepository.findSlackConfig(
+        actor.organizationId,
+      );
 
     if (!configRecord) {
       throw new NotFoundException(
@@ -360,20 +482,33 @@ export class IntegrationsService {
   async getStatus(organizationId: string) {
     const metrics = {
       slack: await this.getMetrics(organizationId, IntegrationProvider.Slack),
-      hubspot: await this.getMetrics(organizationId, IntegrationProvider.HubSpot),
+      hubspot: await this.getMetrics(
+        organizationId,
+        IntegrationProvider.HubSpot,
+      ),
       linear: await this.getMetrics(organizationId, IntegrationProvider.Linear),
+      fireflies: await this.getMetrics(
+        organizationId,
+        IntegrationProvider.Fireflies,
+      ),
     };
 
-    const mappings = await this.externalMappingsRepository.listByOrganization(
-      organizationId,
-    );
+    const mappings =
+      await this.externalMappingsRepository.listByOrganization(organizationId);
 
     const hasSlackConfig = Boolean(
       await this.integrationConfigsRepository.findSlackConfig(organizationId),
     );
 
+    const hasFirefliesConfig = Boolean(
+      await this.integrationConfigsRepository.findFirefliesConfig(
+        organizationId,
+      ),
+    );
+
     return {
       slackConfigured: hasSlackConfig,
+      firefliesConfigured: hasFirefliesConfig,
       mappingsCount: mappings.length,
       mappingsByProvider: {
         slack: mappings.filter(
@@ -385,9 +520,20 @@ export class IntegrationsService {
         linear: mappings.filter(
           (item) => item.provider === IntegrationProvider.Linear,
         ).length,
+        fireflies: mappings.filter(
+          (item) => item.provider === IntegrationProvider.Fireflies,
+        ).length,
       },
       metrics,
     };
+  }
+
+  private maskSecret(value: string): string {
+    if (value.length <= 6) {
+      return '******';
+    }
+
+    return `${'*'.repeat(value.length - 4)}${value.slice(-4)}`;
   }
 
   private async executeWithRetry<T>(

@@ -11,7 +11,8 @@ export interface ExternalMappingEntity {
     | 'company'
     | 'customer'
     | 'sprint'
-    | 'event';
+    | 'event'
+    | 'transcript';
   internalId: string;
   externalId: string;
   syncedAt: string;

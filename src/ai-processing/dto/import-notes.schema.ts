@@ -6,6 +6,7 @@ export const ImportNotesSchema = z.object({
     RequestSourceType.MeetingNotes,
     RequestSourceType.SalesConversation,
     RequestSourceType.SlackMessage,
+    RequestSourceType.FirefliesTranscript,
   ]),
   noteExternalId: z.string().trim().min(1).max(120).optional(),
   text: z.string().trim().min(10).max(20000),

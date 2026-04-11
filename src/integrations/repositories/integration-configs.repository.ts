@@ -9,6 +9,14 @@ export interface SlackConfigRecord {
   defaultChannel?: string;
 }
 
+export interface FirefliesConfigRecord {
+  apiKey: string;
+  workspaceId?: string;
+  projectId?: string;
+  defaultLanguage?: string;
+  updatedAt: string;
+}
+
 @Injectable()
 export class IntegrationConfigsRepository {
   constructor(
@@ -58,6 +66,56 @@ export class IntegrationConfigsRepository {
     return {
       webhookUrl: doc.webhookUrl,
       defaultChannel: doc.defaultChannel,
+    };
+  }
+
+  async upsertFirefliesConfig(
+    organizationId: string,
+    config: Omit<FirefliesConfigRecord, 'updatedAt'>,
+  ): Promise<void> {
+    await this.integrationConfigModel
+      .updateOne(
+        {
+          organizationId,
+          provider: IntegrationProvider.Fireflies,
+        },
+        {
+          $set: {
+            organizationId,
+            provider: IntegrationProvider.Fireflies,
+            apiKey: config.apiKey,
+            workspaceId: config.workspaceId,
+            projectId: config.projectId,
+            defaultLanguage: config.defaultLanguage,
+            updatedAt: new Date().toISOString(),
+          },
+        },
+        { upsert: true },
+      )
+      .exec();
+  }
+
+  async findFirefliesConfig(
+    organizationId: string,
+  ): Promise<FirefliesConfigRecord | undefined> {
+    const doc = await this.integrationConfigModel
+      .findOne({
+        organizationId,
+        provider: IntegrationProvider.Fireflies,
+      })
+      .lean<IntegrationConfigModel>()
+      .exec();
+
+    if (!doc?.apiKey || !doc.updatedAt) {
+      return undefined;
+    }
+
+    return {
+      apiKey: doc.apiKey,
+      workspaceId: doc.workspaceId,
+      projectId: doc.projectId,
+      defaultLanguage: doc.defaultLanguage,
+      updatedAt: doc.updatedAt,
     };
   }
 }

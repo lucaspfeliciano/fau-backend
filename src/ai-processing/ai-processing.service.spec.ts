@@ -1,18 +1,23 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { CompaniesService } from '../companies/companies.service';
+import { randomUUID } from 'crypto';
 import { DomainEventsService } from '../common/events/domain-events.service';
-import { CustomersService } from '../customers/customers.service';
 import type { AuthenticatedUser } from '../common/auth/authenticated-user.interface';
 import { Role } from '../common/auth/role.enum';
+import { RequestSourceType } from '../requests/entities/request-source-type.enum';
 import { RequestsService } from '../requests/requests.service';
-import { TestingRequestsRepository } from '../requests/repositories/testing-requests.repository';
-import { REQUESTS_REPOSITORY } from '../requests/repositories/requests-repository.interface';
+import type { AiReviewQueueItemEntity } from './entities/ai-review-queue-item.entity';
+import { AiReviewQueueStatus } from './entities/ai-review-queue-status.enum';
+import { AiReviewQueueRepository } from './repositories/ai-review-queue.repository';
 import { AiProcessingService } from './ai-processing.service';
-import { AiExtractedItemType } from './entities/ai-extracted-item-type.enum';
 
 describe('AiProcessingService', () => {
   let aiProcessingService: AiProcessingService;
-  let requestsService: RequestsService;
+  let requestsService: jest.Mocked<
+    Pick<
+      RequestsService,
+      'list' | 'findMostSimilarByText' | 'vote' | 'create'
+    >
+  >;
 
   const actor: AuthenticatedUser = {
     id: 'user-1',
@@ -23,82 +28,252 @@ describe('AiProcessingService', () => {
   };
 
   beforeEach(async () => {
+    const queueItems = new Map<string, AiReviewQueueItemEntity>();
+
+    const requestsServiceMock: jest.Mocked<
+      Pick<
+        RequestsService,
+        'list' | 'findMostSimilarByText' | 'vote' | 'create'
+      >
+    > = {
+      list: jest.fn(),
+      findMostSimilarByText: jest.fn(),
+      vote: jest.fn(),
+      create: jest.fn(),
+    };
+
+    const reviewQueueRepositoryMock: Pick<
+      AiReviewQueueRepository,
+      'insert' | 'update' | 'findById' | 'listByOrganization'
+    > = {
+      async insert(item) {
+        queueItems.set(item.id, item);
+      },
+      async update(item) {
+        queueItems.set(item.id, item);
+      },
+      async findById(id, organizationId) {
+        const item = queueItems.get(id);
+        if (!item || item.organizationId !== organizationId) {
+          return undefined;
+        }
+
+        return item;
+      },
+      async listByOrganization(organizationId, status) {
+        return [...queueItems.values()]
+          .filter((item) => item.organizationId === organizationId)
+          .filter((item) => {
+            if (!status) {
+              return true;
+            }
+
+            return item.status === status;
+          })
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      },
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AiProcessingService,
-        RequestsService,
-        TestingRequestsRepository,
-        {
-          provide: REQUESTS_REPOSITORY,
-          useExisting: TestingRequestsRepository,
-        },
         DomainEventsService,
-        CustomersService,
-        CompaniesService,
+        {
+          provide: RequestsService,
+          useValue: requestsServiceMock,
+        },
+        {
+          provide: AiReviewQueueRepository,
+          useValue: reviewQueueRepositoryMock,
+        },
       ],
     }).compile();
 
     aiProcessingService = module.get<AiProcessingService>(AiProcessingService);
-    requestsService = module.get<RequestsService>(RequestsService);
+    requestsService = module.get(RequestsService);
   });
 
-  it('should extract and classify multiple items from notes', () => {
-    const items = aiProcessingService.extractItems(
-      'Cliente reportou bug no filtro. Também pediu integração com Slack para alertas.',
-    );
+  it('should match similar requests with reasons', async () => {
+    requestsService.list.mockResolvedValue({
+      items: [
+        {
+          id: 'request-1',
+          title: 'Dashboard por equipe',
+          description: 'Adicionar filtro por squad e status no dashboard.',
+          boardId: 'board-1',
+          status: 'Backlog',
+          votes: 3,
+          tags: ['ui'],
+          createdBy: 'user-1',
+          organizationId: actor.organizationId,
+          customerIds: [],
+          companyIds: [],
+          sourceType: RequestSourceType.Manual,
+          statusHistory: [],
+          createdAt: '2026-04-10T10:00:00.000Z',
+          updatedAt: '2026-04-10T10:00:00.000Z',
+        },
+        {
+          id: 'request-2',
+          title: 'Notificacoes por email',
+          description: 'Enviar email quando status mudar.',
+          boardId: 'board-2',
+          status: 'Backlog',
+          votes: 2,
+          tags: ['notifications'],
+          createdBy: 'user-1',
+          organizationId: actor.organizationId,
+          customerIds: [],
+          companyIds: [],
+          sourceType: RequestSourceType.Manual,
+          statusHistory: [],
+          createdAt: '2026-04-10T10:00:00.000Z',
+          updatedAt: '2026-04-10T10:00:00.000Z',
+        },
+      ],
+      page: 1,
+      limit: 1000,
+      total: 2,
+      totalPages: 1,
+    });
 
-    expect(items.length).toBeGreaterThanOrEqual(2);
-    expect(items.some((item) => item.type === AiExtractedItemType.Bug)).toBe(
-      true,
-    );
-    expect(
-      items.some((item) => item.type === AiExtractedItemType.FeatureRequest),
-    ).toBe(true);
-  });
-
-  it('should deduplicate similar item and increase votes', async () => {
-    const existing = await requestsService.create(
+    const result = await aiProcessingService.matchSimilarRequests(
       {
-        title: 'Melhorar dashboard de equipe',
-        description: 'Clientes precisam de dashboard por equipe com filtros.',
+        text: 'Cliente pediu dashboard por squad com filtros de equipe.',
       },
       actor,
     );
 
-    const result = await aiProcessingService.importNotes(
+    expect(result.matches.length).toBeGreaterThan(0);
+    expect(result.matches[0]?.requestId).toBe('request-1');
+    expect(result.matches[0]?.reason.length).toBeGreaterThan(0);
+  });
+
+  it('should queue low-confidence items and approve/reject decisions', async () => {
+    requestsService.findMostSimilarByText.mockResolvedValue(undefined);
+    requestsService.create.mockImplementation(async (input, currentActor) => ({
+      id: randomUUID(),
+      title: input.title,
+      description: input.description,
+      status: 'Backlog',
+      votes: 1,
+      tags: input.tags ?? [],
+      createdBy: currentActor.id,
+      organizationId: currentActor.organizationId,
+      customerIds: [],
+      companyIds: [],
+      sourceType: input.sourceType ?? RequestSourceType.Manual,
+      sourceRef: input.sourceRef,
+      ingestedAt: undefined,
+      statusHistory: [],
+      createdAt: '2026-04-10T12:00:00.000Z',
+      updatedAt: '2026-04-10T12:00:00.000Z',
+    }));
+
+    const queuedImport = await aiProcessingService.importNotes(
       {
-        sourceType: 'meeting-notes',
-        text: 'O cliente pediu melhorar dashboard por equipe com filtros avançados.',
+        sourceType: RequestSourceType.MeetingNotes,
+        text: 'Fluxo confuso na tela inicial.',
       },
       actor,
     );
 
-    expect(result.deduplicatedRequests).toBe(1);
-    const updated = await requestsService.findOneById(
-      existing.id,
+    expect(queuedImport.queuedForReviewItems).toBe(1);
+    expect(queuedImport.items[0]?.action).toBe('queued');
+
+    const pendingQueue = await aiProcessingService.listReviewQueue(
+      {
+        page: 1,
+        limit: 20,
+        status: AiReviewQueueStatus.Pending,
+      },
       actor.organizationId,
     );
-    expect(updated.votes).toBe(2);
+
+    expect(pendingQueue.total).toBe(1);
+
+    const approved = await aiProcessingService.approveReviewQueueItem(
+      pendingQueue.items[0]!.id,
+      actor,
+    );
+
+    expect(approved.status).toBe(AiReviewQueueStatus.Approved);
+    expect(approved.resultingRequestId).toBeDefined();
+
+    const secondQueuedImport = await aiProcessingService.importNotes(
+      {
+        sourceType: RequestSourceType.SalesConversation,
+        text: 'Dor no onboarding inicial.',
+      },
+      actor,
+    );
+
+    const rejected = await aiProcessingService.rejectReviewQueueItem(
+      secondQueuedImport.items[0]!.queueItemId!,
+      actor,
+    );
+
+    expect(rejected.status).toBe(AiReviewQueueStatus.Rejected);
   });
 
-  it('should create a new request when similarity is low', async () => {
-    await requestsService.create(
+  it('should approve review queue in batch', async () => {
+    requestsService.findMostSimilarByText.mockResolvedValue(undefined);
+    requestsService.create.mockImplementation(async (input, currentActor) => ({
+      id: randomUUID(),
+      title: input.title,
+      description: input.description,
+      status: 'Backlog',
+      votes: 1,
+      tags: input.tags ?? [],
+      createdBy: currentActor.id,
+      organizationId: currentActor.organizationId,
+      customerIds: [],
+      companyIds: [],
+      sourceType: input.sourceType ?? RequestSourceType.Manual,
+      sourceRef: input.sourceRef,
+      ingestedAt: undefined,
+      statusHistory: [],
+      createdAt: '2026-04-10T12:00:00.000Z',
+      updatedAt: '2026-04-10T12:00:00.000Z',
+    }));
+
+    const first = await aiProcessingService.importNotes(
       {
-        title: 'Integração com WhatsApp',
-        description: 'Equipe de vendas quer integração com WhatsApp.',
+        sourceType: RequestSourceType.MeetingNotes,
+        text: 'Fluxo confuso para equipe.',
       },
       actor,
     );
 
-    const result = await aiProcessingService.importNotes(
+    const second = await aiProcessingService.importNotes(
       {
-        sourceType: 'sales-conversation',
-        text: 'Usuário relatou erro de timeout no export de CSV do relatório financeiro.',
+        sourceType: RequestSourceType.SalesConversation,
+        text: 'Dor no uso do onboarding.',
       },
       actor,
     );
 
-    expect(result.createdRequests).toBe(1);
-    expect(result.items[0]?.request.sourceType).toBe('ai-import');
+    const batch = await aiProcessingService.approveReviewQueueBatch(
+      {
+        itemIds: [
+          first.items[0]!.queueItemId!,
+          second.items[0]!.queueItemId!,
+        ],
+      },
+      actor,
+    );
+
+    expect(batch.approved).toBe(2);
+    const pending = await aiProcessingService.listReviewQueue(
+      {
+        page: 1,
+        limit: 20,
+        status: AiReviewQueueStatus.Pending,
+      },
+      actor.organizationId,
+    );
+
+    expect(pending.total).toBe(0);
+    expect(requestsService.create).toHaveBeenCalledTimes(2);
   });
 });
