@@ -1,7 +1,10 @@
+import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CompaniesService } from '../companies/companies.service';
+import type { CompanyEntity } from '../companies/entities/company.entity';
 import { DomainEventsService } from '../common/events/domain-events.service';
 import { CustomersService } from '../customers/customers.service';
+import type { CustomerEntity } from '../customers/entities/customer.entity';
 import { Role } from '../common/auth/role.enum';
 import { RequestsService } from './requests.service';
 import { RequestStatus } from './entities/request-status.enum';
@@ -11,8 +14,8 @@ import { REQUESTS_REPOSITORY } from './repositories/requests-repository.interfac
 
 describe('RequestsService', () => {
   let requestsService: RequestsService;
-  let companiesService: CompaniesService;
-  let customersService: CustomersService;
+  let companiesService: Pick<CompaniesService, 'create' | 'findOneById'>;
+  let customersService: Pick<CustomersService, 'create' | 'findOneById'>;
 
   const actor: AuthenticatedUser = {
     id: 'user-1',
@@ -23,6 +26,72 @@ describe('RequestsService', () => {
   };
 
   beforeEach(async () => {
+    const companies = new Map<string, CompanyEntity>();
+    const customers = new Map<string, CustomerEntity>();
+
+    const companiesServiceMock: Pick<
+      CompaniesService,
+      'create' | 'findOneById'
+    > = {
+      async create(input, currentActor) {
+        const now = new Date().toISOString();
+        const company: CompanyEntity = {
+          id: `company-${companies.size + 1}`,
+          name: input.name,
+          revenue: input.revenue,
+          organizationId: currentActor.organizationId,
+          createdBy: currentActor.id,
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        companies.set(company.id, company);
+        return company;
+      },
+
+      async findOneById(id, organizationId) {
+        const company = companies.get(id);
+
+        if (!company || company.organizationId !== organizationId) {
+          throw new NotFoundException('Company not found.');
+        }
+
+        return company;
+      },
+    };
+
+    const customersServiceMock: Pick<
+      CustomersService,
+      'create' | 'findOneById'
+    > = {
+      async create(input, currentActor) {
+        const now = new Date().toISOString();
+        const customer: CustomerEntity = {
+          id: `customer-${customers.size + 1}`,
+          name: input.name,
+          email: input.email.toLowerCase(),
+          companyId: input.companyId,
+          organizationId: currentActor.organizationId,
+          createdBy: currentActor.id,
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        customers.set(customer.id, customer);
+        return customer;
+      },
+
+      async findOneById(id, organizationId) {
+        const customer = customers.get(id);
+
+        if (!customer || customer.organizationId !== organizationId) {
+          throw new NotFoundException('Customer not found.');
+        }
+
+        return customer;
+      },
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RequestsService,
@@ -32,14 +101,20 @@ describe('RequestsService', () => {
           useExisting: TestingRequestsRepository,
         },
         DomainEventsService,
-        CompaniesService,
-        CustomersService,
+        {
+          provide: CompaniesService,
+          useValue: companiesServiceMock,
+        },
+        {
+          provide: CustomersService,
+          useValue: customersServiceMock,
+        },
       ],
     }).compile();
 
     requestsService = module.get<RequestsService>(RequestsService);
-    companiesService = module.get<CompaniesService>(CompaniesService);
-    customersService = module.get<CustomersService>(CustomersService);
+    companiesService = module.get(CompaniesService);
+    customersService = module.get(CustomersService);
   });
 
   it('should create request with initial vote and status history', async () => {
@@ -125,14 +200,14 @@ describe('RequestsService', () => {
       actor,
     );
 
-    const company = companiesService.create(
+    const company = await companiesService.create(
       {
         name: 'Acme Corp',
       },
       actor,
     );
 
-    const customer = customersService.create(
+    const customer = await customersService.create(
       {
         name: 'Alice',
         email: 'alice@acme.com',
@@ -168,5 +243,79 @@ describe('RequestsService', () => {
       actor,
     );
     expect(unlinkedCompany.companyIds).not.toContain(company.id);
+  });
+
+  it('should filter by board and find similar requests', async () => {
+    const boardRequest = await requestsService.create(
+      {
+        title: 'Export invoice as PDF',
+        description: 'Users need invoice export as PDF file.',
+        boardId: 'board-sales',
+      },
+      actor,
+    );
+
+    await requestsService.create(
+      {
+        title: 'Send Slack notifications',
+        description: 'Notify support channels on updates.',
+        boardId: 'board-ops',
+      },
+      actor,
+    );
+
+    const boardList = await requestsService.list(
+      {
+        page: 1,
+        limit: 20,
+        boardId: 'board-sales',
+        includeArchived: false,
+      },
+      actor.organizationId,
+    );
+
+    expect(boardList.items).toHaveLength(1);
+    expect(boardList.items[0]?.id).toBe(boardRequest.id);
+
+    const similar = await requestsService.findSimilarRequests(
+      actor.organizationId,
+      {
+        title: 'Invoice PDF export',
+        details: 'Allow exporting invoices to PDF format.',
+        boardId: 'board-sales',
+      },
+    );
+
+    expect(similar.items.length).toBeGreaterThan(0);
+    expect(similar.items[0]?.requestId).toBe(boardRequest.id);
+  });
+
+  it('should add and list request comments', async () => {
+    const request = await requestsService.create(
+      {
+        title: 'Dashboard sorting',
+        description: 'Allow sorting by newest updates.',
+      },
+      actor,
+    );
+
+    const comment = await requestsService.addComment(
+      request.id,
+      {
+        comment: 'This was requested by customer success.',
+      },
+      actor,
+    );
+
+    const comments = await requestsService.listComments(
+      request.id,
+      actor.organizationId,
+    );
+
+    expect(comment.requestId).toBe(request.id);
+    expect(comments).toHaveLength(1);
+    expect(comments[0]?.comment).toBe(
+      'This was requested by customer success.',
+    );
   });
 });

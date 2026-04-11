@@ -1,13 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CompaniesService } from '../companies/companies.service';
+import type { CompanyEntity } from '../companies/entities/company.entity';
 import { Role } from '../common/auth/role.enum';
 import { DomainEventsService } from '../common/events/domain-events.service';
 import { CustomersService } from './customers.service';
 import type { AuthenticatedUser } from '../common/auth/authenticated-user.interface';
+import type { CustomerEntity } from './entities/customer.entity';
+import { CustomersRepository } from './repositories/customers.repository';
 
 describe('CustomersService', () => {
   let customersService: CustomersService;
-  let companiesService: CompaniesService;
+  let companiesService: Pick<CompaniesService, 'create' | 'findOneById'>;
 
   const actor: AuthenticatedUser = {
     id: 'user-1',
@@ -18,12 +21,95 @@ describe('CustomersService', () => {
   };
 
   beforeEach(async () => {
+    const companies = new Map<string, CompanyEntity>();
+    const customers = new Map<string, CustomerEntity>();
+
+    const companiesServiceMock: Pick<
+      CompaniesService,
+      'create' | 'findOneById'
+    > = {
+      async create(input, currentActor) {
+        const now = new Date().toISOString();
+        const company: CompanyEntity = {
+          id: `company-${companies.size + 1}`,
+          name: input.name,
+          revenue: input.revenue,
+          organizationId: currentActor.organizationId,
+          createdBy: currentActor.id,
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        companies.set(company.id, company);
+        return company;
+      },
+
+      async findOneById(id, organizationId) {
+        const company = companies.get(id);
+
+        if (!company || company.organizationId !== organizationId) {
+          throw new Error('Company not found.');
+        }
+
+        return company;
+      },
+    };
+
+    const customersRepositoryMock: Pick<
+      CustomersRepository,
+      'insert' | 'update' | 'listByOrganization' | 'findById' | 'findByEmail'
+    > = {
+      async insert(customer) {
+        customers.set(customer.id, customer);
+      },
+
+      async update(customer) {
+        customers.set(customer.id, customer);
+      },
+
+      async listByOrganization(organizationId) {
+        return [...customers.values()].filter(
+          (customer) => customer.organizationId === organizationId,
+        );
+      },
+
+      async findById(id, organizationId) {
+        const customer = [...customers.values()].find(
+          (item) => item.id === id && item.organizationId === organizationId,
+        );
+
+        return customer ?? undefined;
+      },
+
+      async findByEmail(email, organizationId) {
+        const normalizedEmail = email.toLowerCase();
+        const customer = [...customers.values()].find(
+          (item) =>
+            item.email.toLowerCase() === normalizedEmail &&
+            item.organizationId === organizationId,
+        );
+
+        return customer ?? undefined;
+      },
+    };
+
     const module: TestingModule = await Test.createTestingModule({
-      providers: [CustomersService, CompaniesService, DomainEventsService],
+      providers: [
+        CustomersService,
+        DomainEventsService,
+        {
+          provide: CompaniesService,
+          useValue: companiesServiceMock,
+        },
+        {
+          provide: CustomersRepository,
+          useValue: customersRepositoryMock,
+        },
+      ],
     }).compile();
 
     customersService = module.get<CustomersService>(CustomersService);
-    companiesService = module.get<CompaniesService>(CompaniesService);
+    companiesService = module.get(CompaniesService);
   });
 
   it('should create customer linked to company', async () => {

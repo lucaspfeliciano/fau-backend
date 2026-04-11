@@ -29,6 +29,9 @@ export class RequestModel {
   @Prop({ type: String, required: true })
   description!: string;
 
+  @Prop({ type: String, index: true })
+  boardId?: string;
+
   @Prop({ type: String, required: true })
   status!: string;
 
@@ -76,3 +79,4 @@ export const RequestSchema = SchemaFactory.createForClass(RequestModel);
 
 RequestSchema.index({ organizationId: 1, updatedAt: -1 });
 RequestSchema.index({ organizationId: 1, status: 1, deletedAt: 1 });
+RequestSchema.index({ organizationId: 1, boardId: 1, deletedAt: 1 });

@@ -12,6 +12,7 @@ export interface RequestEntity {
   id: string;
   title: string;
   description: string;
+  boardId?: string;
   status: RequestStatus;
   votes: number;
   tags: string[];

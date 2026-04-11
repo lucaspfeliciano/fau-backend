@@ -3,6 +3,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AiProcessingModule } from './ai-processing/ai-processing.module';
 import { AuthModule } from './auth/auth.module';
+import { BoardsModule } from './boards/boards.module';
 import { CompaniesModule } from './companies/companies.module';
 import { AccessControlModule } from './common/auth/access-control.module';
 import { DomainEventsModule } from './common/events/domain-events.module';
@@ -24,6 +25,7 @@ import { UsersModule } from './users/users.module';
     UsersModule,
     AccessControlModule,
     OrganizationsModule,
+    BoardsModule,
     CompaniesModule,
     CustomersModule,
     RequestsModule,

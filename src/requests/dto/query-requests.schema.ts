@@ -34,6 +34,7 @@ const toBoolean = z.preprocess((value) => {
 export const QueryRequestsSchema = z.object({
   page: toPositiveInt(1),
   limit: toPositiveInt(20, 100),
+  boardId: z.string().trim().min(1).max(120).optional(),
   status: z.nativeEnum(RequestStatus).optional(),
   tag: z.string().trim().min(1).max(30).optional(),
   search: z.string().trim().min(1).max(120).optional(),

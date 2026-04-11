@@ -59,6 +59,15 @@ Os princípios abaixo são obrigatórios em todas as sprints:
 12. [Sprint 12 - Intelligent Deduplication v1](./sprint-12-intelligent-deduplication-v1.md)
 13. [Sprint 13 - Source of Truth e Integrações v2](./sprint-13-source-of-truth-integrations-v2.md)
 
+## Sequência de Entrega de Rotas para Frontend (09-14)
+
+9. [Sprint 09 - Frontend Routes (Boards e Requests)](./sprint-09-frontend-boards-requests.md)
+10. [Sprint 10 - Frontend Routes (Roadmap e Views)](./sprint-10-frontend-roadmap-views.md)
+11. [Sprint 11 - Frontend Routes (Fireflies e AI)](./sprint-11-frontend-ai-fireflies.md)
+12. [Sprint 12 - Frontend Routes (Integrations Ops)](./sprint-12-frontend-integrations-ops.md)
+13. [Sprint 13 - Frontend Routes (Users e Audit)](./sprint-13-frontend-users-audit.md)
+14. [Sprint 14 - Frontend Routes (Releases, Analytics e Health)](./sprint-14-frontend-release-analytics-health.md)
+
 ## Critérios de Conclusão do v1
 
 O produto pode ser considerado pronto para v1 quando todos os itens abaixo forem atendidos:

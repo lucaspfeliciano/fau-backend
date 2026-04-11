@@ -26,12 +26,16 @@ import { Role } from '../common/auth/role.enum';
 import { Roles } from '../common/auth/roles.decorator';
 import { RolesGuard } from '../common/auth/roles.guard';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe';
+import { CreateRequestCommentSchema } from './dto/create-request-comment.schema';
 import { CreateRequestSchema } from './dto/create-request.schema';
+import { FindSimilarRequestsSchema } from './dto/find-similar-requests.schema';
 import { QueryRequestsSchema } from './dto/query-requests.schema';
 import { UpdateRequestSchema } from './dto/update-request.schema';
 import { RequestsService } from './requests.service';
 import type { AuthenticatedUser } from '../common/auth/authenticated-user.interface';
+import type { CreateRequestCommentInput } from './dto/create-request-comment.schema';
 import type { CreateRequestInput } from './dto/create-request.schema';
+import type { FindSimilarRequestsInput } from './dto/find-similar-requests.schema';
 import type { QueryRequestsInput } from './dto/query-requests.schema';
 import type { UpdateRequestInput } from './dto/update-request.schema';
 
@@ -65,6 +69,31 @@ export class RequestsController {
     return {
       request: await this.requestsService.create(body, user),
     };
+  }
+
+  @Post('similar')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Find similar requests before creation' })
+  @ApiBody({
+    schema: {
+      example: {
+        title: 'Melhorar dashboard de equipe',
+        details: 'Cliente pediu dashboard por equipe com filtro por squad.',
+        boardId: 'board-1',
+      },
+    },
+  })
+  @ApiCreatedResponse({
+    description: 'Similar requests returned successfully.',
+  })
+  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  findSimilar(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body(new ZodValidationPipe(FindSimilarRequestsSchema))
+    body: FindSimilarRequestsInput,
+  ) {
+    return this.requestsService.findSimilarRequests(user.organizationId, body);
   }
 
   @Get()
@@ -103,6 +132,45 @@ export class RequestsController {
     @Param('id') id: string,
   ) {
     return this.requestsService.getRequestUpdates(id, user.organizationId);
+  }
+
+  @Post(':id/comments')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Add comment to request timeline' })
+  @ApiParam({ name: 'id', description: 'Request id' })
+  @ApiBody({
+    schema: {
+      example: {
+        comment: 'Cliente confirmou prioridade alta para o proximo ciclo.',
+      },
+    },
+  })
+  @ApiCreatedResponse({ description: 'Comment added successfully.' })
+  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async addComment(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(CreateRequestCommentSchema))
+    body: CreateRequestCommentInput,
+  ) {
+    return {
+      comment: await this.requestsService.addComment(id, body, user),
+    };
+  }
+
+  @Get(':id/comments')
+  @ApiOperation({ summary: 'List request comments' })
+  @ApiParam({ name: 'id', description: 'Request id' })
+  @ApiOkResponse({ description: 'Returns request comments list.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async listComments(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return {
+      items: await this.requestsService.listComments(id, user.organizationId),
+    };
   }
 
   @Patch(':id')

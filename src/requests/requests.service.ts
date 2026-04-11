@@ -1,16 +1,28 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { CompaniesService } from '../companies/companies.service';
 import { DomainEventsService } from '../common/events/domain-events.service';
 import type { DomainEvent } from '../common/events/domain-event.interface';
 import { CustomersService } from '../customers/customers.service';
 import type { AuthenticatedUser } from '../common/auth/authenticated-user.interface';
+import type { CreateRequestCommentInput } from './dto/create-request-comment.schema';
 import type { CreateRequestInput } from './dto/create-request.schema';
+import type { FindSimilarRequestsInput } from './dto/find-similar-requests.schema';
 import type { QueryRequestsInput } from './dto/query-requests.schema';
 import type { UpdateRequestInput } from './dto/update-request.schema';
+import type { RequestCommentEntity } from './entities/request-comment.entity';
 import { RequestEntity } from './entities/request.entity';
 import { RequestSourceType } from './entities/request-source-type.enum';
 import { RequestStatus } from './entities/request-status.enum';
+import {
+  REQUEST_COMMENTS_REPOSITORY,
+  type RequestCommentsRepository,
+} from './repositories/request-comments-repository.interface';
 import {
   REQUESTS_REPOSITORY,
   type RequestsRepository,
@@ -34,11 +46,25 @@ export interface RequestUpdatesResult {
   updates: DomainEvent[];
 }
 
+export interface SimilarRequestItem {
+  requestId: string;
+  title: string;
+  similarityScore: number;
+  actionSuggested: 'link_existing' | 'review';
+}
+
 @Injectable()
 export class RequestsService {
+  private readonly inMemoryComments: RequestCommentEntity[] = [];
+
   constructor(
     @Inject(REQUESTS_REPOSITORY)
     private readonly requestsRepository: RequestsRepository,
+    @Optional()
+    @Inject(REQUEST_COMMENTS_REPOSITORY)
+    private readonly requestCommentsRepository:
+      | RequestCommentsRepository
+      | undefined,
     private readonly domainEventsService: DomainEventsService,
     private readonly customersService: CustomersService,
     private readonly companiesService: CompaniesService,
@@ -56,6 +82,7 @@ export class RequestsService {
       id: randomUUID(),
       title: input.title,
       description: input.description,
+      boardId: input.boardId,
       status,
       votes: 1,
       tags: this.uniqueValues(input.tags),
@@ -117,6 +144,13 @@ export class RequestsService {
         return request.status === query.status;
       })
       .filter((request) => {
+        if (!query.boardId) {
+          return true;
+        }
+
+        return request.boardId === query.boardId;
+      })
+      .filter((request) => {
         if (!query.tag) {
           return true;
         }
@@ -173,6 +207,10 @@ export class RequestsService {
 
     if (input.description !== undefined) {
       request.description = input.description;
+    }
+
+    if (input.boardId !== undefined) {
+      request.boardId = input.boardId ?? undefined;
     }
 
     if (input.tags !== undefined) {
@@ -237,6 +275,98 @@ export class RequestsService {
     });
 
     return request;
+  }
+
+  async findSimilarRequests(
+    organizationId: string,
+    input: FindSimilarRequestsInput,
+  ): Promise<{ items: SimilarRequestItem[] }> {
+    const normalized = `${input.title} ${input.details}`.trim().toLowerCase();
+    if (!normalized) {
+      return { items: [] };
+    }
+
+    const threshold = 0.2;
+    const maxItems = 8;
+
+    const candidates = (
+      await this.requestsRepository.listByOrganization(organizationId)
+    )
+      .filter((request) => !request.deletedAt)
+      .filter((request) => {
+        if (!input.boardId) {
+          return true;
+        }
+
+        return request.boardId === input.boardId;
+      })
+      .filter((request) => {
+        if (!input.customerId) {
+          return true;
+        }
+
+        return request.customerIds.includes(input.customerId);
+      })
+      .map((request) => {
+        const referenceText = `${request.title} ${request.description}`;
+        const score = this.calculateTextSimilarity(normalized, referenceText);
+        return {
+          request,
+          score,
+        };
+      })
+      .filter((item) => item.score >= threshold)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, maxItems);
+
+    return {
+      items: candidates.map((item) => ({
+        requestId: item.request.id,
+        title: item.request.title,
+        similarityScore: Number(item.score.toFixed(4)),
+        actionSuggested: item.score >= 0.55 ? 'link_existing' : 'review',
+      })),
+    };
+  }
+
+  async addComment(
+    requestId: string,
+    input: CreateRequestCommentInput,
+    actor: AuthenticatedUser,
+  ): Promise<RequestCommentEntity> {
+    await this.findById(requestId, actor.organizationId, false);
+
+    const comment: RequestCommentEntity = {
+      id: randomUUID(),
+      requestId,
+      organizationId: actor.organizationId,
+      comment: input.comment,
+      createdBy: actor.id,
+      createdAt: new Date().toISOString(),
+    };
+
+    await this.insertComment(comment);
+
+    this.domainEventsService.publish({
+      name: 'request.comment_added',
+      occurredAt: comment.createdAt,
+      actorId: actor.id,
+      organizationId: actor.organizationId,
+      payload: {
+        requestId,
+        commentId: comment.id,
+      },
+    });
+
+    return comment;
+  }
+
+  async listComments(
+    requestId: string,
+    organizationId: string,
+  ): Promise<RequestCommentEntity[]> {
+    await this.findById(requestId, organizationId, true);
+    return this.readComments(requestId, organizationId);
   }
 
   async archive(
@@ -588,5 +718,34 @@ export class RequestsService {
 
     const unionSize = new Set([...tokensA, ...tokensB]).size;
     return unionSize === 0 ? 0 : intersection / unionSize;
+  }
+
+  private async insertComment(comment: RequestCommentEntity): Promise<void> {
+    if (this.requestCommentsRepository) {
+      await this.requestCommentsRepository.insert(comment);
+      return;
+    }
+
+    this.inMemoryComments.push(comment);
+  }
+
+  private async readComments(
+    requestId: string,
+    organizationId: string,
+  ): Promise<RequestCommentEntity[]> {
+    if (this.requestCommentsRepository) {
+      return this.requestCommentsRepository.listByRequest(
+        requestId,
+        organizationId,
+      );
+    }
+
+    return this.inMemoryComments
+      .filter(
+        (comment) =>
+          comment.requestId === requestId &&
+          comment.organizationId === organizationId,
+      )
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }
 }
