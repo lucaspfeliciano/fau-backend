@@ -7,6 +7,7 @@ import { CompaniesModule } from './companies/companies.module';
 import { AccessControlModule } from './common/auth/access-control.module';
 import { DomainEventsModule } from './common/events/domain-events.module';
 import { CustomersModule } from './customers/customers.module';
+import { DatabaseModule } from './database/database.module';
 import { EngineeringModule } from './engineering/engineering.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { NotificationsModule } from './notifications/notifications.module';
@@ -18,6 +19,7 @@ import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
+    DatabaseModule.register(),
     DomainEventsModule,
     UsersModule,
     AccessControlModule,

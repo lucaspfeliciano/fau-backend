@@ -11,7 +11,8 @@ export interface UserEntity {
   id: string;
   email: string;
   name: string;
-  googleId: string;
+  googleId?: string;
+  passwordHash?: string;
   memberships: UserMembership[];
   currentOrganizationId?: string;
   createdAt: string;

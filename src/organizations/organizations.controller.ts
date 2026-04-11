@@ -36,13 +36,16 @@ export class OrganizationsController {
   @ApiBody({ schema: { example: { name: 'Acme Corp' } } })
   @ApiCreatedResponse({ description: 'Organization created successfully.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  create(
+  async create(
     @CurrentUser() user: AuthenticatedUser,
     @Body(new ZodValidationPipe(CreateOrganizationSchema))
     body: CreateOrganizationInput,
   ) {
     return {
-      organization: this.organizationsService.createForUser(body.name, user.id),
+      organization: await this.organizationsService.createForUser(
+        body.name,
+        user.id,
+      ),
     };
   }
 
@@ -53,8 +56,8 @@ export class OrganizationsController {
   })
   @ApiNotFoundResponse({ description: 'No organization found for this user.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  getMe(@CurrentUser() user: AuthenticatedUser) {
-    const result = this.organizationsService.getCurrentForUser(user.id);
+  async getMe(@CurrentUser() user: AuthenticatedUser) {
+    const result = await this.organizationsService.getCurrentForUser(user.id);
 
     if (!result) {
       throw new NotFoundException(

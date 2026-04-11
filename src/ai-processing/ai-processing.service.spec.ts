@@ -5,6 +5,8 @@ import { CustomersService } from '../customers/customers.service';
 import type { AuthenticatedUser } from '../common/auth/authenticated-user.interface';
 import { Role } from '../common/auth/role.enum';
 import { RequestsService } from '../requests/requests.service';
+import { TestingRequestsRepository } from '../requests/repositories/testing-requests.repository';
+import { REQUESTS_REPOSITORY } from '../requests/repositories/requests-repository.interface';
 import { AiProcessingService } from './ai-processing.service';
 import { AiExtractedItemType } from './entities/ai-extracted-item-type.enum';
 
@@ -25,6 +27,11 @@ describe('AiProcessingService', () => {
       providers: [
         AiProcessingService,
         RequestsService,
+        TestingRequestsRepository,
+        {
+          provide: REQUESTS_REPOSITORY,
+          useExisting: TestingRequestsRepository,
+        },
         DomainEventsService,
         CustomersService,
         CompaniesService,
@@ -50,7 +57,7 @@ describe('AiProcessingService', () => {
   });
 
   it('should deduplicate similar item and increase votes', async () => {
-    const existing = requestsService.create(
+    const existing = await requestsService.create(
       {
         title: 'Melhorar dashboard de equipe',
         description: 'Clientes precisam de dashboard por equipe com filtros.',
@@ -67,7 +74,7 @@ describe('AiProcessingService', () => {
     );
 
     expect(result.deduplicatedRequests).toBe(1);
-    const updated = requestsService.findOneById(
+    const updated = await requestsService.findOneById(
       existing.id,
       actor.organizationId,
     );
@@ -75,7 +82,7 @@ describe('AiProcessingService', () => {
   });
 
   it('should create a new request when similarity is low', async () => {
-    requestsService.create(
+    await requestsService.create(
       {
         title: 'Integração com WhatsApp',
         description: 'Equipe de vendas quer integração com WhatsApp.',

@@ -62,13 +62,13 @@ export class CustomersController {
   @ApiCreatedResponse({ description: 'Customer created successfully.' })
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  create(
+  async create(
     @CurrentUser() user: AuthenticatedUser,
     @Body(new ZodValidationPipe(CreateCustomerSchema))
     body: CreateCustomerInput,
   ) {
     return {
-      customer: this.customersService.create(body, user),
+      customer: await this.customersService.create(body, user),
     };
   }
 
@@ -76,7 +76,7 @@ export class CustomersController {
   @ApiOperation({ summary: 'List customers' })
   @ApiOkResponse({ description: 'Returns paginated customers.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  list(
+  async list(
     @CurrentUser() user: AuthenticatedUser,
     @Query(new ZodValidationPipe(QueryCustomersSchema))
     query: QueryCustomersInput,
@@ -89,9 +89,15 @@ export class CustomersController {
   @ApiParam({ name: 'id', description: 'Customer id' })
   @ApiOkResponse({ description: 'Returns customer details.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  findById(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  async findById(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
     return {
-      customer: this.customersService.findOneById(id, user.organizationId),
+      customer: await this.customersService.findOneById(
+        id,
+        user.organizationId,
+      ),
     };
   }
 
@@ -110,14 +116,14 @@ export class CustomersController {
   @ApiOkResponse({ description: 'Customer updated successfully.' })
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  update(
+  async update(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
     @Body(new ZodValidationPipe(UpdateCustomerSchema))
     body: UpdateCustomerInput,
   ) {
     return {
-      customer: this.customersService.update(id, body, user),
+      customer: await this.customersService.update(id, body, user),
     };
   }
 }

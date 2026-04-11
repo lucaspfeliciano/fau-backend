@@ -75,13 +75,13 @@ export class ProductController {
   @ApiCreatedResponse({ description: 'Initiative created successfully.' })
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  createInitiative(
+  async createInitiative(
     @CurrentUser() user: AuthenticatedUser,
     @Body(new ZodValidationPipe(CreateInitiativeSchema))
     body: CreateInitiativeInput,
   ) {
     return {
-      initiative: this.productService.createInitiative(body, user),
+      initiative: await this.productService.createInitiative(body, user),
     };
   }
 
@@ -89,7 +89,7 @@ export class ProductController {
   @ApiOperation({ summary: 'List initiatives with pagination and filters' })
   @ApiOkResponse({ description: 'Returns paginated initiatives.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  listInitiatives(
+  async listInitiatives(
     @CurrentUser() user: AuthenticatedUser,
     @Query(new ZodValidationPipe(QueryInitiativesSchema))
     query: QueryInitiativesInput,
@@ -112,14 +112,14 @@ export class ProductController {
   @ApiOkResponse({ description: 'Initiative updated successfully.' })
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  updateInitiative(
+  async updateInitiative(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
     @Body(new ZodValidationPipe(UpdateInitiativeSchema))
     body: UpdateInitiativeInput,
   ) {
     return {
-      initiative: this.productService.updateInitiative(id, body, user),
+      initiative: await this.productService.updateInitiative(id, body, user),
     };
   }
 
@@ -140,12 +140,12 @@ export class ProductController {
   @ApiCreatedResponse({ description: 'Feature created successfully.' })
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  createFeature(
+  async createFeature(
     @CurrentUser() user: AuthenticatedUser,
     @Body(new ZodValidationPipe(CreateFeatureSchema)) body: CreateFeatureInput,
   ) {
     return {
-      feature: this.productService.createFeature(body, user),
+      feature: await this.productService.createFeature(body, user),
     };
   }
 
@@ -153,7 +153,7 @@ export class ProductController {
   @ApiOperation({ summary: 'List features with pagination and filters' })
   @ApiOkResponse({ description: 'Returns paginated features.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  listFeatures(
+  async listFeatures(
     @CurrentUser() user: AuthenticatedUser,
     @Query(new ZodValidationPipe(QueryFeaturesSchema))
     query: QueryFeaturesInput,
@@ -175,13 +175,13 @@ export class ProductController {
   @ApiOkResponse({ description: 'Feature updated successfully.' })
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  updateFeature(
+  async updateFeature(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
     @Body(new ZodValidationPipe(UpdateFeatureSchema)) body: UpdateFeatureInput,
   ) {
     return {
-      feature: this.productService.updateFeature(id, body, user),
+      feature: await this.productService.updateFeature(id, body, user),
     };
   }
 
@@ -193,13 +193,17 @@ export class ProductController {
   @ApiCreatedResponse({ description: 'Request linked to feature.' })
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  linkRequest(
+  async linkRequest(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
     @Param('requestId') requestId: string,
   ) {
     return {
-      feature: this.productService.linkRequestToFeature(id, requestId, user),
+      feature: await this.productService.linkRequestToFeature(
+        id,
+        requestId,
+        user,
+      ),
     };
   }
 
@@ -210,7 +214,7 @@ export class ProductController {
   @ApiParam({ name: 'id', description: 'Feature id' })
   @ApiOkResponse({ description: 'Returns feature traceability graph.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  getFeatureTraceability(
+  async getFeatureTraceability(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
   ) {

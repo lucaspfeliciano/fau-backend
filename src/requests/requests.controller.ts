@@ -58,12 +58,12 @@ export class RequestsController {
   @ApiCreatedResponse({ description: 'Request created successfully.' })
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  create(
+  async create(
     @CurrentUser() user: AuthenticatedUser,
     @Body(new ZodValidationPipe(CreateRequestSchema)) body: CreateRequestInput,
   ) {
     return {
-      request: this.requestsService.create(body, user),
+      request: await this.requestsService.create(body, user),
     };
   }
 
@@ -71,7 +71,7 @@ export class RequestsController {
   @ApiOperation({ summary: 'List requests with pagination and filters' })
   @ApiOkResponse({ description: 'Returns paginated requests.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  list(
+  async list(
     @CurrentUser() user: AuthenticatedUser,
     @Query(new ZodValidationPipe(QueryRequestsSchema))
     query: QueryRequestsInput,
@@ -84,9 +84,12 @@ export class RequestsController {
   @ApiParam({ name: 'id', description: 'Request id' })
   @ApiOkResponse({ description: 'Returns request by id.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  findById(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  async findById(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
     return {
-      request: this.requestsService.findOneById(id, user.organizationId),
+      request: await this.requestsService.findOneById(id, user.organizationId),
     };
   }
 
@@ -95,7 +98,10 @@ export class RequestsController {
   @ApiParam({ name: 'id', description: 'Request id' })
   @ApiOkResponse({ description: 'Returns request updates history.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  getUpdates(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  async getUpdates(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
     return this.requestsService.getRequestUpdates(id, user.organizationId);
   }
 
@@ -114,13 +120,13 @@ export class RequestsController {
   @ApiOkResponse({ description: 'Request updated successfully.' })
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  update(
+  async update(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
     @Body(new ZodValidationPipe(UpdateRequestSchema)) body: UpdateRequestInput,
   ) {
     return {
-      request: this.requestsService.update(id, body, user),
+      request: await this.requestsService.update(id, body, user),
     };
   }
 
@@ -131,9 +137,12 @@ export class RequestsController {
   @ApiOkResponse({ description: 'Request archived successfully.' })
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  archive(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  async archive(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
     return {
-      request: this.requestsService.archive(id, user),
+      request: await this.requestsService.archive(id, user),
     };
   }
 
@@ -144,9 +153,9 @@ export class RequestsController {
   @ApiCreatedResponse({ description: 'Vote registered successfully.' })
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  vote(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  async vote(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return {
-      request: this.requestsService.vote(id, user),
+      request: await this.requestsService.vote(id, user),
     };
   }
 
@@ -158,13 +167,13 @@ export class RequestsController {
   @ApiCreatedResponse({ description: 'Customer linked to request.' })
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  linkCustomer(
+  async linkCustomer(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
     @Param('customerId') customerId: string,
   ) {
     return {
-      request: this.requestsService.linkCustomer(id, customerId, user),
+      request: await this.requestsService.linkCustomer(id, customerId, user),
     };
   }
 
@@ -176,13 +185,13 @@ export class RequestsController {
   @ApiOkResponse({ description: 'Customer unlinked from request.' })
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  unlinkCustomer(
+  async unlinkCustomer(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
     @Param('customerId') customerId: string,
   ) {
     return {
-      request: this.requestsService.unlinkCustomer(id, customerId, user),
+      request: await this.requestsService.unlinkCustomer(id, customerId, user),
     };
   }
 
@@ -194,13 +203,13 @@ export class RequestsController {
   @ApiCreatedResponse({ description: 'Company linked to request.' })
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  linkCompany(
+  async linkCompany(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
     @Param('companyId') companyId: string,
   ) {
     return {
-      request: this.requestsService.linkCompany(id, companyId, user),
+      request: await this.requestsService.linkCompany(id, companyId, user),
     };
   }
 
@@ -212,13 +221,13 @@ export class RequestsController {
   @ApiOkResponse({ description: 'Company unlinked from request.' })
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  unlinkCompany(
+  async unlinkCompany(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
     @Param('companyId') companyId: string,
   ) {
     return {
-      request: this.requestsService.unlinkCompany(id, companyId, user),
+      request: await this.requestsService.unlinkCompany(id, companyId, user),
     };
   }
 }

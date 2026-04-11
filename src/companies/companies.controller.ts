@@ -61,12 +61,12 @@ export class CompaniesController {
   @ApiCreatedResponse({ description: 'Company created successfully.' })
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  create(
+  async create(
     @CurrentUser() user: AuthenticatedUser,
     @Body(new ZodValidationPipe(CreateCompanySchema)) body: CreateCompanyInput,
   ) {
     return {
-      company: this.companiesService.create(body, user),
+      company: await this.companiesService.create(body, user),
     };
   }
 
@@ -74,7 +74,7 @@ export class CompaniesController {
   @ApiOperation({ summary: 'List companies' })
   @ApiOkResponse({ description: 'Returns paginated companies.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  list(
+  async list(
     @CurrentUser() user: AuthenticatedUser,
     @Query(new ZodValidationPipe(QueryCompaniesSchema))
     query: QueryCompaniesInput,
@@ -87,9 +87,12 @@ export class CompaniesController {
   @ApiParam({ name: 'id', description: 'Company id' })
   @ApiOkResponse({ description: 'Returns company details.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  findById(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  async findById(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
     return {
-      company: this.companiesService.findOneById(id, user.organizationId),
+      company: await this.companiesService.findOneById(id, user.organizationId),
     };
   }
 
@@ -108,13 +111,13 @@ export class CompaniesController {
   @ApiOkResponse({ description: 'Company updated successfully.' })
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  update(
+  async update(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
     @Body(new ZodValidationPipe(UpdateCompanySchema)) body: UpdateCompanyInput,
   ) {
     return {
-      company: this.companiesService.update(id, body, user),
+      company: await this.companiesService.update(id, body, user),
     };
   }
 }

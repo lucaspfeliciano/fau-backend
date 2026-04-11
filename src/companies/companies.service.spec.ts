@@ -23,8 +23,8 @@ describe('CompaniesService', () => {
     companiesService = module.get<CompaniesService>(CompaniesService);
   });
 
-  it('should create and update company', () => {
-    const created = companiesService.create(
+  it('should create and update company', async () => {
+    const created = await companiesService.create(
       {
         name: 'Acme',
         revenue: 1000,
@@ -34,7 +34,7 @@ describe('CompaniesService', () => {
 
     expect(created.name).toBe('Acme');
 
-    const updated = companiesService.update(
+    const updated = await companiesService.update(
       created.id,
       {
         name: 'Acme Corp',

@@ -16,7 +16,7 @@ Este plano transforma o documento de produto em uma execução incremental, com 
 
 ## Princípios Core Transversais
 
-Os 3 princípios abaixo são obrigatórios em todas as sprints:
+Os princípios abaixo são obrigatórios em todas as sprints:
 
 - Full Traceability:
   - Toda entidade deve manter vínculos e metadados suficientes para navegar na cadeia Customer -> Request -> Feature -> Task -> Sprint -> Release.
@@ -27,6 +27,18 @@ Os 3 princípios abaixo são obrigatórios em todas as sprints:
 - Unstructured to Structured Input:
   - Entradas não estruturadas (meeting notes, sales conversations, Slack messages) devem virar dados estruturados.
   - Sempre que possível, com deduplicação e vínculo a clientes/requests existentes.
+- Event-Driven System:
+  - Toda ação relevante deve gerar evento de domínio versionado e auditável.
+  - Eventos devem propagar atualizações entre camadas sem acoplamento direto entre módulos.
+- Smart Prioritization:
+  - Priorização deve combinar votos, receita, tier de cliente, risco de churn e contexto estratégico.
+  - Requests e features devem expor score dinâmico com explicabilidade mínima.
+- Intelligent Deduplication:
+  - Duplicidades devem considerar similaridade semântica e não apenas texto exato.
+  - Duplicações de alta confiança devem sugerir merge, consolidar votos e preservar evidências.
+- External Tools as Extensions:
+  - Sistema interno é a fonte de verdade; ferramentas externas são extensões de operação.
+  - Integrações não podem quebrar rastreabilidade nem regras de negócio centrais.
 
 ## Sequência de Implementação (v1)
 
@@ -38,6 +50,14 @@ Os 3 princípios abaixo são obrigatórios em todas as sprints:
 6. [Sprint 06 - AI Processing (v0)](./sprint-06-ai-processing-v0.md)
 7. [Sprint 07 - Integrations (Slack, HubSpot, Linear)](./sprint-07-integrations.md)
 8. [Sprint 08 - Notifications e Go-Live v1](./sprint-08-notifications-go-live.md)
+
+## Sequência de Evolução (v1.1)
+
+9. [Sprint 09 - MongoDB e Repository Layer](./sprint-09-mongodb-repository-layer.md)
+10. [Sprint 10 - Event Backbone e Orquestração](./sprint-10-event-backbone-orchestration.md)
+11. [Sprint 11 - Smart Prioritization Engine](./sprint-11-smart-prioritization-engine.md)
+12. [Sprint 12 - Intelligent Deduplication v1](./sprint-12-intelligent-deduplication-v1.md)
+13. [Sprint 13 - Source of Truth e Integrações v2](./sprint-13-source-of-truth-integrations-v2.md)
 
 ## Critérios de Conclusão do v1
 

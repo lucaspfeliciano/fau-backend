@@ -4,6 +4,7 @@ import type { AuthenticatedUser } from '../common/auth/authenticated-user.interf
 import { DomainEventsService } from '../common/events/domain-events.service';
 import { CompaniesService } from '../companies/companies.service';
 import { CustomersService } from '../customers/customers.service';
+import type { RequestEntity } from '../requests/entities/request.entity';
 import { RequestStatus } from '../requests/entities/request-status.enum';
 import { RequestsService } from '../requests/requests.service';
 import type { CreateFeatureInput } from './dto/create-feature.schema';
@@ -20,6 +21,8 @@ import type {
 import { InitiativeStatus } from './entities/initiative-status.enum';
 import type { InitiativeEntity } from './entities/initiative.entity';
 import { ProductPriority } from './entities/product-priority.enum';
+import { FeaturesRepository } from './repositories/features.repository';
+import { InitiativesRepository } from './repositories/initiatives.repository';
 
 export interface PaginatedResult<T> {
   items: T[];
@@ -31,27 +34,26 @@ export interface PaginatedResult<T> {
 
 export interface FeatureTraceabilityResult {
   feature: FeatureEntity;
-  requests: ReturnType<RequestsService['findOneById']>[];
-  impactedCustomers: ReturnType<CustomersService['findOneById']>[];
-  impactedCompanies: ReturnType<CompaniesService['findOneById']>[];
+  requests: RequestEntity[];
+  impactedCustomers: Awaited<ReturnType<CustomersService['findOneById']>>[];
+  impactedCompanies: Awaited<ReturnType<CompaniesService['findOneById']>>[];
 }
 
 @Injectable()
 export class ProductService {
-  private readonly initiatives: InitiativeEntity[] = [];
-  private readonly features: FeatureEntity[] = [];
-
   constructor(
     private readonly domainEventsService: DomainEventsService,
     private readonly requestsService: RequestsService,
     private readonly customersService: CustomersService,
     private readonly companiesService: CompaniesService,
+    private readonly initiativesRepository: InitiativesRepository,
+    private readonly featuresRepository: FeaturesRepository,
   ) {}
 
-  createInitiative(
+  async createInitiative(
     input: CreateInitiativeInput,
     actor: AuthenticatedUser,
-  ): InitiativeEntity {
+  ): Promise<InitiativeEntity> {
     const now = new Date().toISOString();
     const status = input.status ?? InitiativeStatus.Draft;
     const priority = input.priority ?? ProductPriority.Medium;
@@ -77,7 +79,7 @@ export class ProductService {
       updatedAt: now,
     };
 
-    this.initiatives.push(initiative);
+    await this.initiativesRepository.insert(initiative);
 
     this.domainEventsService.publish({
       name: 'product.initiative_created',
@@ -94,12 +96,14 @@ export class ProductService {
     return initiative;
   }
 
-  listInitiatives(
+  async listInitiatives(
     query: QueryInitiativesInput,
     organizationId: string,
-  ): PaginatedResult<InitiativeEntity> {
-    const filtered = this.initiatives
-      .filter((initiative) => initiative.organizationId === organizationId)
+  ): Promise<PaginatedResult<InitiativeEntity>> {
+    const initiatives =
+      await this.initiativesRepository.listByOrganization(organizationId);
+
+    const filtered = initiatives
       .filter((initiative) => {
         if (!query.status) {
           return true;
@@ -130,12 +134,12 @@ export class ProductService {
     return this.paginate(filtered, query.page, query.limit);
   }
 
-  updateInitiative(
+  async updateInitiative(
     id: string,
     input: UpdateInitiativeInput,
     actor: AuthenticatedUser,
-  ): InitiativeEntity {
-    const initiative = this.findInitiativeById(id, actor.organizationId);
+  ): Promise<InitiativeEntity> {
+    const initiative = await this.findInitiativeById(id, actor.organizationId);
     const previousStatus = initiative.status;
 
     if (input.title !== undefined) {
@@ -173,6 +177,7 @@ export class ProductService {
     }
 
     initiative.updatedAt = new Date().toISOString();
+    await this.initiativesRepository.update(initiative);
 
     this.domainEventsService.publish({
       name: 'product.initiative_updated',
@@ -187,19 +192,21 @@ export class ProductService {
     return initiative;
   }
 
-  createFeature(
+  async createFeature(
     input: CreateFeatureInput,
     actor: AuthenticatedUser,
-  ): FeatureEntity {
+  ): Promise<FeatureEntity> {
     const now = new Date().toISOString();
     const requestIds = this.uniqueValues(input.requestIds);
-    const requests = requestIds.map((requestId) =>
-      this.requestsService.findOneById(requestId, actor.organizationId),
+    const requests = await Promise.all(
+      requestIds.map((requestId) =>
+        this.requestsService.findOneById(requestId, actor.organizationId),
+      ),
     );
 
     let initiativeId: string | undefined;
     if (input.initiativeId) {
-      const initiative = this.findInitiativeById(
+      const initiative = await this.findInitiativeById(
         input.initiativeId,
         actor.organizationId,
       );
@@ -239,10 +246,10 @@ export class ProductService {
       updatedAt: now,
     };
 
-    this.features.push(feature);
+    await this.featuresRepository.insert(feature);
 
     if (initiativeId) {
-      this.attachFeatureToInitiative(
+      await this.attachFeatureToInitiative(
         initiativeId,
         feature.id,
         actor.organizationId,
@@ -265,12 +272,14 @@ export class ProductService {
     return feature;
   }
 
-  listFeatures(
+  async listFeatures(
     query: QueryFeaturesInput,
     organizationId: string,
-  ): PaginatedResult<FeatureEntity> {
-    const filtered = this.features
-      .filter((feature) => feature.organizationId === organizationId)
+  ): Promise<PaginatedResult<FeatureEntity>> {
+    const features =
+      await this.featuresRepository.listByOrganization(organizationId);
+
+    const filtered = features
       .filter((feature) => {
         if (!query.status) {
           return true;
@@ -308,12 +317,12 @@ export class ProductService {
     return this.paginate(filtered, query.page, query.limit);
   }
 
-  updateFeature(
+  async updateFeature(
     id: string,
     input: UpdateFeatureInput,
     actor: AuthenticatedUser,
-  ): FeatureEntity {
-    const feature = this.findFeatureByIdOrFail(id, actor.organizationId);
+  ): Promise<FeatureEntity> {
+    const feature = await this.findFeatureByIdOrFail(id, actor.organizationId);
     const previousStatus = feature.status;
 
     if (input.title !== undefined) {
@@ -326,8 +335,10 @@ export class ProductService {
 
     if (input.requestIds !== undefined) {
       const requestIds = this.uniqueValues(input.requestIds);
-      const requests = requestIds.map((requestId) =>
-        this.requestsService.findOneById(requestId, actor.organizationId),
+      const requests = await Promise.all(
+        requestIds.map((requestId) =>
+          this.requestsService.findOneById(requestId, actor.organizationId),
+        ),
       );
 
       feature.requestIds = requestIds;
@@ -345,7 +356,7 @@ export class ProductService {
     }
 
     if (input.initiativeId !== undefined) {
-      this.moveFeatureToInitiative(
+      await this.moveFeatureToInitiative(
         feature,
         input.initiativeId,
         actor.organizationId,
@@ -378,7 +389,7 @@ export class ProductService {
         input.status,
       );
       if (propagatedStatus && feature.requestIds.length > 0) {
-        this.requestsService.propagateStatusFromFeature(
+        await this.requestsService.propagateStatusFromFeature(
           feature.requestIds,
           propagatedStatus,
           actor,
@@ -388,6 +399,7 @@ export class ProductService {
     }
 
     feature.updatedAt = new Date().toISOString();
+    await this.featuresRepository.update(feature);
 
     this.domainEventsService.publish({
       name: 'product.feature_updated',
@@ -402,35 +414,36 @@ export class ProductService {
     return feature;
   }
 
-  linkRequestToFeature(
+  async linkRequestToFeature(
     featureId: string,
     requestId: string,
     actor: AuthenticatedUser,
-  ): FeatureEntity {
-    const feature = this.findFeatureByIdOrFail(featureId, actor.organizationId);
-    const request = this.requestsService.findOneById(
+  ): Promise<FeatureEntity> {
+    const feature = await this.findFeatureByIdOrFail(
+      featureId,
+      actor.organizationId,
+    );
+    const request = await this.requestsService.findOneById(
       requestId,
       actor.organizationId,
     );
 
     if (!feature.requestIds.includes(requestId)) {
       feature.requestIds.push(requestId);
-      feature.requestSources = this.extractRequestSources(
+      const linkedRequests = await Promise.all(
         feature.requestIds.map((id) =>
           this.requestsService.findOneById(id, actor.organizationId),
         ),
       );
-      feature.priorityScore = this.calculatePriorityScore(
-        feature.requestIds.map((id) =>
-          this.requestsService.findOneById(id, actor.organizationId),
-        ),
-      );
+      feature.requestSources = this.extractRequestSources(linkedRequests);
+      feature.priorityScore = this.calculatePriorityScore(linkedRequests);
 
       if (!feature.isPriorityManual) {
         feature.priority = this.mapScoreToPriority(feature.priorityScore);
       }
 
       feature.updatedAt = new Date().toISOString();
+      await this.featuresRepository.update(feature);
 
       this.domainEventsService.publish({
         name: 'product.feature_request_linked',
@@ -448,23 +461,25 @@ export class ProductService {
     return feature;
   }
 
-  getFeatureTraceability(
+  async getFeatureTraceability(
     featureId: string,
     organizationId: string,
-  ): FeatureTraceabilityResult {
-    const feature = this.findFeatureByIdOrFail(featureId, organizationId);
-    const requests = feature.requestIds
-      .map((requestId) => {
-        try {
-          return this.requestsService.findOneById(requestId, organizationId);
-        } catch {
-          return undefined;
-        }
-      })
-      .filter(
-        (request): request is ReturnType<RequestsService['findOneById']> =>
-          Boolean(request),
-      );
+  ): Promise<FeatureTraceabilityResult> {
+    const feature = await this.findFeatureByIdOrFail(featureId, organizationId);
+    const requests = (
+      await Promise.all(
+        feature.requestIds.map(async (requestId) => {
+          try {
+            return await this.requestsService.findOneById(
+              requestId,
+              organizationId,
+            );
+          } catch {
+            return undefined;
+          }
+        }),
+      )
+    ).filter((request): request is RequestEntity => Boolean(request));
 
     const customerIds = this.uniqueValues(
       requests.flatMap((request) => request.customerIds),
@@ -473,31 +488,45 @@ export class ProductService {
       requests.flatMap((request) => request.companyIds),
     );
 
-    const impactedCustomers = customerIds
-      .map((customerId) => {
-        try {
-          return this.customersService.findOneById(customerId, organizationId);
-        } catch {
-          return undefined;
-        }
-      })
-      .filter(
-        (customer): customer is ReturnType<CustomersService['findOneById']> =>
-          Boolean(customer),
-      );
+    const impactedCustomers = (
+      await Promise.all(
+        customerIds.map(async (customerId) => {
+          try {
+            return await this.customersService.findOneById(
+              customerId,
+              organizationId,
+            );
+          } catch {
+            return undefined;
+          }
+        }),
+      )
+    ).filter(
+      (
+        customer,
+      ): customer is Awaited<ReturnType<CustomersService['findOneById']>> =>
+        Boolean(customer),
+    );
 
-    const impactedCompanies = companyIds
-      .map((companyId) => {
-        try {
-          return this.companiesService.findOneById(companyId, organizationId);
-        } catch {
-          return undefined;
-        }
-      })
-      .filter(
-        (company): company is ReturnType<CompaniesService['findOneById']> =>
-          Boolean(company),
-      );
+    const impactedCompanies = (
+      await Promise.all(
+        companyIds.map(async (companyId) => {
+          try {
+            return await this.companiesService.findOneById(
+              companyId,
+              organizationId,
+            );
+          } catch {
+            return undefined;
+          }
+        }),
+      )
+    ).filter(
+      (
+        company,
+      ): company is Awaited<ReturnType<CompaniesService['findOneById']>> =>
+        Boolean(company),
+    );
 
     return {
       feature,
@@ -507,16 +536,20 @@ export class ProductService {
     };
   }
 
-  findFeatureById(featureId: string, organizationId: string): FeatureEntity {
+  async findFeatureById(
+    featureId: string,
+    organizationId: string,
+  ): Promise<FeatureEntity> {
     return this.findFeatureByIdOrFail(featureId, organizationId);
   }
 
-  private findInitiativeById(
+  private async findInitiativeById(
     id: string,
     organizationId: string,
-  ): InitiativeEntity {
-    const initiative = this.initiatives.find(
-      (item) => item.id === id && item.organizationId === organizationId,
+  ): Promise<InitiativeEntity> {
+    const initiative = await this.initiativesRepository.findById(
+      id,
+      organizationId,
     );
 
     if (!initiative) {
@@ -526,13 +559,11 @@ export class ProductService {
     return initiative;
   }
 
-  private findFeatureByIdOrFail(
+  private async findFeatureByIdOrFail(
     id: string,
     organizationId: string,
-  ): FeatureEntity {
-    const feature = this.features.find(
-      (item) => item.id === id && item.organizationId === organizationId,
-    );
+  ): Promise<FeatureEntity> {
+    const feature = await this.featuresRepository.findById(id, organizationId);
 
     if (!feature) {
       throw new NotFoundException('Feature not found.');
@@ -541,26 +572,33 @@ export class ProductService {
     return feature;
   }
 
-  private attachFeatureToInitiative(
+  private async attachFeatureToInitiative(
     initiativeId: string,
     featureId: string,
     organizationId: string,
-  ): void {
-    const initiative = this.findInitiativeById(initiativeId, organizationId);
+  ): Promise<void> {
+    const initiative = await this.findInitiativeById(
+      initiativeId,
+      organizationId,
+    );
     if (initiative.featureIds.includes(featureId)) {
       return;
     }
 
     initiative.featureIds.push(featureId);
     initiative.updatedAt = new Date().toISOString();
+    await this.initiativesRepository.update(initiative);
   }
 
-  private detachFeatureFromInitiative(
+  private async detachFeatureFromInitiative(
     initiativeId: string,
     featureId: string,
     organizationId: string,
-  ): void {
-    const initiative = this.findInitiativeById(initiativeId, organizationId);
+  ): Promise<void> {
+    const initiative = await this.findInitiativeById(
+      initiativeId,
+      organizationId,
+    );
     const previousSize = initiative.featureIds.length;
     initiative.featureIds = initiative.featureIds.filter(
       (id) => id !== featureId,
@@ -568,19 +606,20 @@ export class ProductService {
 
     if (initiative.featureIds.length !== previousSize) {
       initiative.updatedAt = new Date().toISOString();
+      await this.initiativesRepository.update(initiative);
     }
   }
 
-  private moveFeatureToInitiative(
+  private async moveFeatureToInitiative(
     feature: FeatureEntity,
     nextInitiativeId: string | null,
     organizationId: string,
-  ): void {
+  ): Promise<void> {
     const previousInitiativeId = feature.initiativeId;
 
     if (nextInitiativeId === null) {
       if (previousInitiativeId) {
-        this.detachFeatureFromInitiative(
+        await this.detachFeatureFromInitiative(
           previousInitiativeId,
           feature.id,
           organizationId,
@@ -594,13 +633,13 @@ export class ProductService {
       return;
     }
 
-    const nextInitiative = this.findInitiativeById(
+    const nextInitiative = await this.findInitiativeById(
       nextInitiativeId,
       organizationId,
     );
 
     if (previousInitiativeId) {
-      this.detachFeatureFromInitiative(
+      await this.detachFeatureFromInitiative(
         previousInitiativeId,
         feature.id,
         organizationId,
@@ -608,16 +647,14 @@ export class ProductService {
     }
 
     feature.initiativeId = nextInitiative.id;
-    this.attachFeatureToInitiative(
+    await this.attachFeatureToInitiative(
       nextInitiative.id,
       feature.id,
       organizationId,
     );
   }
 
-  private calculatePriorityScore(
-    requests: ReturnType<RequestsService['findOneById']>[],
-  ): number {
+  private calculatePriorityScore(requests: RequestEntity[]): number {
     if (requests.length === 0) {
       return 0;
     }
@@ -692,7 +729,7 @@ export class ProductService {
   }
 
   private extractRequestSources(
-    requests: ReturnType<RequestsService['findOneById']>[],
+    requests: RequestEntity[],
   ): FeatureRequestSource[] {
     return requests.map((request) => ({
       requestId: request.id,

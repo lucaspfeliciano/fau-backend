@@ -11,6 +11,7 @@ import type { CreateCustomerInput } from './dto/create-customer.schema';
 import type { QueryCustomersInput } from './dto/query-customers.schema';
 import type { UpdateCustomerInput } from './dto/update-customer.schema';
 import { CustomerEntity } from './entities/customer.entity';
+import { CustomersRepository } from './repositories/customers.repository';
 
 export interface PaginatedCustomersResult {
   items: CustomerEntity[];
@@ -22,19 +23,24 @@ export interface PaginatedCustomersResult {
 
 @Injectable()
 export class CustomersService {
-  private readonly customers: CustomerEntity[] = [];
-
   constructor(
     private readonly companiesService: CompaniesService,
+    private readonly customersRepository: CustomersRepository,
     private readonly domainEventsService: DomainEventsService,
   ) {}
 
-  create(input: CreateCustomerInput, actor: AuthenticatedUser): CustomerEntity {
+  async create(
+    input: CreateCustomerInput,
+    actor: AuthenticatedUser,
+  ): Promise<CustomerEntity> {
     const normalizedEmail = input.email.toLowerCase();
-    this.ensureEmailIsUnique(normalizedEmail, actor.organizationId);
+    await this.ensureEmailIsUnique(normalizedEmail, actor.organizationId);
 
     if (input.companyId) {
-      this.companiesService.findOneById(input.companyId, actor.organizationId);
+      await this.companiesService.findOneById(
+        input.companyId,
+        actor.organizationId,
+      );
     }
 
     const now = new Date().toISOString();
@@ -49,7 +55,7 @@ export class CustomersService {
       updatedAt: now,
     };
 
-    this.customers.push(customer);
+    await this.customersRepository.insert(customer);
 
     this.domainEventsService.publish({
       name: 'customer.created',
@@ -65,12 +71,13 @@ export class CustomersService {
     return customer;
   }
 
-  list(
+  async list(
     query: QueryCustomersInput,
     organizationId: string,
-  ): PaginatedCustomersResult {
-    const filtered = this.customers
-      .filter((customer) => customer.organizationId === organizationId)
+  ): Promise<PaginatedCustomersResult> {
+    const filtered = (
+      await this.customersRepository.listByOrganization(organizationId)
+    )
       .filter((customer) => {
         if (!query.search) {
           return true;
@@ -104,9 +111,13 @@ export class CustomersService {
     };
   }
 
-  findOneById(id: string, organizationId: string): CustomerEntity {
-    const customer = this.customers.find(
-      (item) => item.id === id && item.organizationId === organizationId,
+  async findOneById(
+    id: string,
+    organizationId: string,
+  ): Promise<CustomerEntity> {
+    const customer = await this.customersRepository.findById(
+      id,
+      organizationId,
     );
 
     if (!customer) {
@@ -116,16 +127,16 @@ export class CustomersService {
     return customer;
   }
 
-  update(
+  async update(
     id: string,
     input: UpdateCustomerInput,
     actor: AuthenticatedUser,
-  ): CustomerEntity {
-    const customer = this.findOneById(id, actor.organizationId);
+  ): Promise<CustomerEntity> {
+    const customer = await this.findOneById(id, actor.organizationId);
 
     if (input.email !== undefined) {
       const normalizedEmail = input.email.toLowerCase();
-      this.ensureEmailIsUnique(
+      await this.ensureEmailIsUnique(
         normalizedEmail,
         actor.organizationId,
         customer.id,
@@ -141,7 +152,7 @@ export class CustomersService {
       if (input.companyId === null) {
         customer.companyId = undefined;
       } else {
-        this.companiesService.findOneById(
+        await this.companiesService.findOneById(
           input.companyId,
           actor.organizationId,
         );
@@ -150,6 +161,7 @@ export class CustomersService {
     }
 
     customer.updatedAt = new Date().toISOString();
+    await this.customersRepository.update(customer);
 
     this.domainEventsService.publish({
       name: 'customer.updated',
@@ -165,19 +177,17 @@ export class CustomersService {
     return customer;
   }
 
-  private ensureEmailIsUnique(
+  private async ensureEmailIsUnique(
     email: string,
     organizationId: string,
     currentCustomerId?: string,
-  ): void {
-    const conflict = this.customers.find(
-      (customer) =>
-        customer.organizationId === organizationId &&
-        customer.email === email &&
-        customer.id !== currentCustomerId,
+  ): Promise<void> {
+    const conflict = await this.customersRepository.findByEmail(
+      email,
+      organizationId,
     );
 
-    if (conflict) {
+    if (conflict && conflict.id !== currentCustomerId) {
       throw new BadRequestException(
         'Customer email already exists in this organization.',
       );

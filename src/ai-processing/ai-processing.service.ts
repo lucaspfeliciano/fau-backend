@@ -85,14 +85,17 @@ export class AiProcessingService {
     const results: ProcessedItemResult[] = [];
 
     for (const extractedItem of extractedItems) {
-      const similar = this.requestsService.findMostSimilarByText(
+      const similar = await this.requestsService.findMostSimilarByText(
         actor.organizationId,
         extractedItem.normalizedText,
         0.32,
       );
 
       if (similar) {
-        const voted = this.requestsService.vote(similar.request.id, actor);
+        const voted = await this.requestsService.vote(
+          similar.request.id,
+          actor,
+        );
 
         this.domainEventsService.publish({
           name: 'ai.request_deduplicated',
@@ -137,7 +140,7 @@ export class AiProcessingService {
         ],
       };
 
-      const created = this.requestsService.create(createPayload, actor);
+      const created = await this.requestsService.create(createPayload, actor);
 
       this.domainEventsService.publish({
         name: 'ai.request_created',

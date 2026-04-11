@@ -6,6 +6,7 @@ import type { CreateCompanyInput } from './dto/create-company.schema';
 import type { QueryCompaniesInput } from './dto/query-companies.schema';
 import type { UpdateCompanyInput } from './dto/update-company.schema';
 import { CompanyEntity } from './entities/company.entity';
+import { CompaniesRepository } from './repositories/companies.repository';
 
 export interface PaginatedCompaniesResult {
   items: CompanyEntity[];
@@ -17,11 +18,15 @@ export interface PaginatedCompaniesResult {
 
 @Injectable()
 export class CompaniesService {
-  private readonly companies: CompanyEntity[] = [];
+  constructor(
+    private readonly companiesRepository: CompaniesRepository,
+    private readonly domainEventsService: DomainEventsService,
+  ) {}
 
-  constructor(private readonly domainEventsService: DomainEventsService) {}
-
-  create(input: CreateCompanyInput, actor: AuthenticatedUser): CompanyEntity {
+  async create(
+    input: CreateCompanyInput,
+    actor: AuthenticatedUser,
+  ): Promise<CompanyEntity> {
     const now = new Date().toISOString();
 
     const company: CompanyEntity = {
@@ -34,7 +39,7 @@ export class CompaniesService {
       updatedAt: now,
     };
 
-    this.companies.push(company);
+    await this.companiesRepository.insert(company);
 
     this.domainEventsService.publish({
       name: 'company.created',
@@ -49,12 +54,13 @@ export class CompaniesService {
     return company;
   }
 
-  list(
+  async list(
     query: QueryCompaniesInput,
     organizationId: string,
-  ): PaginatedCompaniesResult {
-    const filtered = this.companies
-      .filter((company) => company.organizationId === organizationId)
+  ): Promise<PaginatedCompaniesResult> {
+    const filtered = (
+      await this.companiesRepository.listByOrganization(organizationId)
+    )
       .filter((company) => {
         if (!query.search) {
           return true;
@@ -78,10 +84,11 @@ export class CompaniesService {
     };
   }
 
-  findOneById(id: string, organizationId: string): CompanyEntity {
-    const company = this.companies.find(
-      (item) => item.id === id && item.organizationId === organizationId,
-    );
+  async findOneById(
+    id: string,
+    organizationId: string,
+  ): Promise<CompanyEntity> {
+    const company = await this.companiesRepository.findById(id, organizationId);
 
     if (!company) {
       throw new NotFoundException('Company not found.');
@@ -90,12 +97,12 @@ export class CompaniesService {
     return company;
   }
 
-  update(
+  async update(
     id: string,
     input: UpdateCompanyInput,
     actor: AuthenticatedUser,
-  ): CompanyEntity {
-    const company = this.findOneById(id, actor.organizationId);
+  ): Promise<CompanyEntity> {
+    const company = await this.findOneById(id, actor.organizationId);
 
     if (input.name !== undefined) {
       company.name = input.name;
@@ -106,6 +113,7 @@ export class CompaniesService {
     }
 
     company.updatedAt = new Date().toISOString();
+    await this.companiesRepository.update(company);
 
     this.domainEventsService.publish({
       name: 'company.updated',

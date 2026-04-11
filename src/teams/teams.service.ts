@@ -2,14 +2,20 @@ import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { DomainEventsService } from '../common/events/domain-events.service';
 import { TeamEntity } from './entities/team.entity';
+import { TeamsRepository } from './repositories/teams.repository';
 
 @Injectable()
 export class TeamsService {
-  private readonly teams: TeamEntity[] = [];
+  constructor(
+    private readonly teamsRepository: TeamsRepository,
+    private readonly domainEventsService: DomainEventsService,
+  ) {}
 
-  constructor(private readonly domainEventsService: DomainEventsService) {}
-
-  create(name: string, organizationId: string, actorId: string): TeamEntity {
+  async create(
+    name: string,
+    organizationId: string,
+    actorId: string,
+  ): Promise<TeamEntity> {
     const now = new Date().toISOString();
 
     const team: TeamEntity = {
@@ -21,7 +27,7 @@ export class TeamsService {
       updatedAt: now,
     };
 
-    this.teams.push(team);
+    await this.teamsRepository.insert(team);
 
     this.domainEventsService.publish({
       name: 'team.created',
@@ -37,7 +43,7 @@ export class TeamsService {
     return team;
   }
 
-  listByOrganization(organizationId: string): TeamEntity[] {
-    return this.teams.filter((team) => team.organizationId === organizationId);
+  listByOrganization(organizationId: string): Promise<TeamEntity[]> {
+    return this.teamsRepository.listByOrganization(organizationId);
   }
 }

@@ -4,11 +4,14 @@ import {
   ExceptionFilter,
   HttpException,
   HttpStatus,
+  Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(GlobalExceptionFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost): void {
     const context = host.switchToHttp();
     const response = context.getResponse<Response>();
@@ -22,6 +25,12 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         error: exception.getResponse(),
       });
       return;
+    }
+
+    if (exception instanceof Error) {
+      this.logger.error(exception.message, exception.stack);
+    } else {
+      this.logger.error('Unhandled non-error exception', String(exception));
     }
 
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { CompaniesService } from '../companies/companies.service';
 import { DomainEventsService } from '../common/events/domain-events.service';
@@ -11,6 +11,10 @@ import type { UpdateRequestInput } from './dto/update-request.schema';
 import { RequestEntity } from './entities/request.entity';
 import { RequestSourceType } from './entities/request-source-type.enum';
 import { RequestStatus } from './entities/request-status.enum';
+import {
+  REQUESTS_REPOSITORY,
+  type RequestsRepository,
+} from './repositories/requests-repository.interface';
 
 export interface PaginatedRequestsResult {
   items: RequestEntity[];
@@ -32,15 +36,18 @@ export interface RequestUpdatesResult {
 
 @Injectable()
 export class RequestsService {
-  private readonly requests: RequestEntity[] = [];
-
   constructor(
+    @Inject(REQUESTS_REPOSITORY)
+    private readonly requestsRepository: RequestsRepository,
     private readonly domainEventsService: DomainEventsService,
     private readonly customersService: CustomersService,
     private readonly companiesService: CompaniesService,
   ) {}
 
-  create(input: CreateRequestInput, actor: AuthenticatedUser): RequestEntity {
+  async create(
+    input: CreateRequestInput,
+    actor: AuthenticatedUser,
+  ): Promise<RequestEntity> {
     const now = new Date().toISOString();
     const status = input.status ?? RequestStatus.Backlog;
     const sourceType = input.sourceType ?? RequestSourceType.Manual;
@@ -71,7 +78,7 @@ export class RequestsService {
       updatedAt: now,
     };
 
-    this.requests.push(request);
+    await this.requestsRepository.insert(request);
 
     this.domainEventsService.publish({
       name: 'request.created',
@@ -88,12 +95,13 @@ export class RequestsService {
     return request;
   }
 
-  list(
+  async list(
     query: QueryRequestsInput,
     organizationId: string,
-  ): PaginatedRequestsResult {
-    const filtered = this.requests
-      .filter((request) => request.organizationId === organizationId)
+  ): Promise<PaginatedRequestsResult> {
+    const filtered = (
+      await this.requestsRepository.listByOrganization(organizationId)
+    )
       .filter((request) => {
         if (query.includeArchived) {
           return true;
@@ -144,16 +152,19 @@ export class RequestsService {
     };
   }
 
-  findOneById(requestId: string, organizationId: string): RequestEntity {
+  async findOneById(
+    requestId: string,
+    organizationId: string,
+  ): Promise<RequestEntity> {
     return this.findById(requestId, organizationId, false);
   }
 
-  update(
+  async update(
     requestId: string,
     input: UpdateRequestInput,
     actor: AuthenticatedUser,
-  ): RequestEntity {
-    const request = this.findById(requestId, actor.organizationId, false);
+  ): Promise<RequestEntity> {
+    const request = await this.findById(requestId, actor.organizationId, false);
     const previousStatus = request.status;
 
     if (input.title !== undefined) {
@@ -213,6 +224,7 @@ export class RequestsService {
     }
 
     request.updatedAt = new Date().toISOString();
+    await this.requestsRepository.update(request);
 
     this.domainEventsService.publish({
       name: 'request.updated',
@@ -227,12 +239,16 @@ export class RequestsService {
     return request;
   }
 
-  archive(requestId: string, actor: AuthenticatedUser): RequestEntity {
-    const request = this.findById(requestId, actor.organizationId, false);
+  async archive(
+    requestId: string,
+    actor: AuthenticatedUser,
+  ): Promise<RequestEntity> {
+    const request = await this.findById(requestId, actor.organizationId, false);
     const now = new Date().toISOString();
 
     request.deletedAt = now;
     request.updatedAt = now;
+    await this.requestsRepository.update(request);
 
     this.domainEventsService.publish({
       name: 'request.archived',
@@ -247,10 +263,14 @@ export class RequestsService {
     return request;
   }
 
-  vote(requestId: string, actor: AuthenticatedUser): RequestEntity {
-    const request = this.findById(requestId, actor.organizationId, false);
+  async vote(
+    requestId: string,
+    actor: AuthenticatedUser,
+  ): Promise<RequestEntity> {
+    const request = await this.findById(requestId, actor.organizationId, false);
     request.votes += 1;
     request.updatedAt = new Date().toISOString();
+    await this.requestsRepository.update(request);
 
     this.domainEventsService.publish({
       name: 'request.voted',
@@ -266,17 +286,18 @@ export class RequestsService {
     return request;
   }
 
-  linkCustomer(
+  async linkCustomer(
     requestId: string,
     customerId: string,
     actor: AuthenticatedUser,
-  ): RequestEntity {
-    const request = this.findById(requestId, actor.organizationId, false);
-    this.customersService.findOneById(customerId, actor.organizationId);
+  ): Promise<RequestEntity> {
+    const request = await this.findById(requestId, actor.organizationId, false);
+    await this.customersService.findOneById(customerId, actor.organizationId);
 
     if (!request.customerIds.includes(customerId)) {
       request.customerIds.push(customerId);
       request.updatedAt = new Date().toISOString();
+      await this.requestsRepository.update(request);
 
       this.domainEventsService.publish({
         name: 'request.customer_linked',
@@ -293,17 +314,18 @@ export class RequestsService {
     return request;
   }
 
-  unlinkCustomer(
+  async unlinkCustomer(
     requestId: string,
     customerId: string,
     actor: AuthenticatedUser,
-  ): RequestEntity {
-    const request = this.findById(requestId, actor.organizationId, false);
+  ): Promise<RequestEntity> {
+    const request = await this.findById(requestId, actor.organizationId, false);
     const previousLength = request.customerIds.length;
     request.customerIds = request.customerIds.filter((id) => id !== customerId);
 
     if (request.customerIds.length !== previousLength) {
       request.updatedAt = new Date().toISOString();
+      await this.requestsRepository.update(request);
 
       this.domainEventsService.publish({
         name: 'request.customer_unlinked',
@@ -320,17 +342,18 @@ export class RequestsService {
     return request;
   }
 
-  linkCompany(
+  async linkCompany(
     requestId: string,
     companyId: string,
     actor: AuthenticatedUser,
-  ): RequestEntity {
-    const request = this.findById(requestId, actor.organizationId, false);
-    this.companiesService.findOneById(companyId, actor.organizationId);
+  ): Promise<RequestEntity> {
+    const request = await this.findById(requestId, actor.organizationId, false);
+    await this.companiesService.findOneById(companyId, actor.organizationId);
 
     if (!request.companyIds.includes(companyId)) {
       request.companyIds.push(companyId);
       request.updatedAt = new Date().toISOString();
+      await this.requestsRepository.update(request);
 
       this.domainEventsService.publish({
         name: 'request.company_linked',
@@ -347,17 +370,18 @@ export class RequestsService {
     return request;
   }
 
-  unlinkCompany(
+  async unlinkCompany(
     requestId: string,
     companyId: string,
     actor: AuthenticatedUser,
-  ): RequestEntity {
-    const request = this.findById(requestId, actor.organizationId, false);
+  ): Promise<RequestEntity> {
+    const request = await this.findById(requestId, actor.organizationId, false);
     const previousLength = request.companyIds.length;
     request.companyIds = request.companyIds.filter((id) => id !== companyId);
 
     if (request.companyIds.length !== previousLength) {
       request.updatedAt = new Date().toISOString();
+      await this.requestsRepository.update(request);
 
       this.domainEventsService.publish({
         name: 'request.company_unlinked',
@@ -374,17 +398,21 @@ export class RequestsService {
     return request;
   }
 
-  propagateStatusFromFeature(
+  async propagateStatusFromFeature(
     requestIds: string[],
     status: RequestStatus,
     actor: AuthenticatedUser,
     featureId: string,
-  ): RequestEntity[] {
+  ): Promise<RequestEntity[]> {
     const updatedRequests: RequestEntity[] = [];
     const uniqueRequestIds = this.uniqueValues(requestIds);
 
     for (const requestId of uniqueRequestIds) {
-      const request = this.findById(requestId, actor.organizationId, false);
+      const request = await this.findById(
+        requestId,
+        actor.organizationId,
+        false,
+      );
 
       if (request.status === status) {
         updatedRequests.push(request);
@@ -401,6 +429,7 @@ export class RequestsService {
         changedAt,
       });
       request.updatedAt = changedAt;
+      await this.requestsRepository.update(request);
 
       this.domainEventsService.publish({
         name: 'request.status_changed',
@@ -432,11 +461,11 @@ export class RequestsService {
     return updatedRequests;
   }
 
-  findMostSimilarByText(
+  async findMostSimilarByText(
     organizationId: string,
     rawText: string,
     threshold: number,
-  ): SimilarRequestMatch | undefined {
+  ): Promise<SimilarRequestMatch | undefined> {
     const normalized = rawText.trim().toLowerCase();
     if (!normalized) {
       return undefined;
@@ -444,11 +473,11 @@ export class RequestsService {
 
     let bestMatch: SimilarRequestMatch | undefined;
 
-    for (const request of this.requests) {
-      if (request.organizationId !== organizationId || request.deletedAt) {
-        continue;
-      }
+    const organizationRequests = (
+      await this.requestsRepository.listByOrganization(organizationId)
+    ).filter((request) => !request.deletedAt);
 
+    for (const request of organizationRequests) {
       const referenceText = `${request.title} ${request.description}`;
       const score = this.calculateTextSimilarity(normalized, referenceText);
 
@@ -467,11 +496,11 @@ export class RequestsService {
     return bestMatch;
   }
 
-  getRequestUpdates(
+  async getRequestUpdates(
     requestId: string,
     organizationId: string,
-  ): RequestUpdatesResult {
-    const request = this.findOneById(requestId, organizationId);
+  ): Promise<RequestUpdatesResult> {
+    const request = await this.findOneById(requestId, organizationId);
     const updates = this.domainEventsService
       .list()
       .filter((event) => {
@@ -490,22 +519,16 @@ export class RequestsService {
     };
   }
 
-  private findById(
+  private async findById(
     requestId: string,
     organizationId: string,
     includeArchived: boolean,
-  ): RequestEntity {
-    const request = this.requests.find((item) => {
-      if (item.id !== requestId || item.organizationId !== organizationId) {
-        return false;
-      }
-
-      if (!includeArchived && item.deletedAt) {
-        return false;
-      }
-
-      return true;
-    });
+  ): Promise<RequestEntity> {
+    const request = await this.requestsRepository.findById(
+      requestId,
+      organizationId,
+      includeArchived,
+    );
 
     if (!request) {
       throw new NotFoundException('Request not found.');

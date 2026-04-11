@@ -1,8 +1,8 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import type { AuthenticatedUser } from '../common/auth/authenticated-user.interface';
 import type { DomainEvent } from '../common/events/domain-event.interface';
 import { DomainEventsService } from '../common/events/domain-events.service';
-import type { AuthenticatedUser } from '../common/auth/authenticated-user.interface';
 import { CompaniesService } from '../companies/companies.service';
 import { CustomersService } from '../customers/customers.service';
 import { EngineeringService } from '../engineering/engineering.service';
@@ -15,12 +15,12 @@ import type {
   NotificationPreferenceEntity,
 } from './entities/notification.entity';
 import type { ReleaseEntity } from './entities/release.entity';
+import { NotificationPreferencesRepository } from './repositories/notification-preferences.repository';
+import { NotificationsRepository } from './repositories/notifications.repository';
+import { ReleasesRepository } from './repositories/releases.repository';
 
 @Injectable()
 export class NotificationsService implements OnModuleInit, OnModuleDestroy {
-  private readonly notifications: NotificationEntity[] = [];
-  private readonly releases: ReleaseEntity[] = [];
-  private readonly preferences: NotificationPreferenceEntity[] = [];
   private unsubscribeHandler?: () => void;
 
   constructor(
@@ -30,12 +30,15 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     private readonly engineeringService: EngineeringService,
     private readonly customersService: CustomersService,
     private readonly companiesService: CompaniesService,
+    private readonly notificationsRepository: NotificationsRepository,
+    private readonly notificationPreferencesRepository: NotificationPreferencesRepository,
+    private readonly releasesRepository: ReleasesRepository,
   ) {}
 
   onModuleInit() {
-    this.unsubscribeHandler = this.domainEventsService.subscribe((event) =>
-      this.handleDomainEvent(event),
-    );
+    this.unsubscribeHandler = this.domainEventsService.subscribe((event) => {
+      void this.handleDomainEvent(event);
+    });
   }
 
   onModuleDestroy() {
@@ -44,11 +47,11 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  upsertPreferences(
+  async upsertPreferences(
     input: NotificationPreferencesInput,
     actor: AuthenticatedUser,
-  ): NotificationPreferenceEntity {
-    const preference = this.findOrCreatePreference(
+  ): Promise<NotificationPreferenceEntity> {
+    const preference = await this.findOrCreatePreference(
       actor.organizationId,
       input.teamId,
     );
@@ -70,31 +73,34 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     }
 
     preference.updatedAt = new Date().toISOString();
+    await this.notificationPreferencesRepository.upsert(preference);
+
     return preference;
   }
 
-  getPreferences(organizationId: string) {
-    return this.preferences.filter(
-      (item) => item.organizationId === organizationId,
+  async getPreferences(organizationId: string) {
+    return this.notificationPreferencesRepository.listByOrganization(
+      organizationId,
     );
   }
 
-  listNotifications(organizationId: string) {
-    return this.notifications
-      .filter((item) => item.organizationId === organizationId)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  async listNotifications(organizationId: string) {
+    return this.notificationsRepository.listByOrganization(organizationId);
   }
 
-  createRelease(
+  async createRelease(
     input: CreateReleaseInput,
     actor: AuthenticatedUser,
-  ): ReleaseEntity {
+  ): Promise<ReleaseEntity> {
     for (const featureId of input.featureIds ?? []) {
-      this.productService.findFeatureById(featureId, actor.organizationId);
+      await this.productService.findFeatureById(featureId, actor.organizationId);
     }
 
     for (const sprintId of input.sprintIds ?? []) {
-      this.engineeringService.getSprintProgress(sprintId, actor.organizationId);
+      await this.engineeringService.getSprintProgress(
+        sprintId,
+        actor.organizationId,
+      );
     }
 
     const release: ReleaseEntity = {
@@ -109,7 +115,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       createdAt: new Date().toISOString(),
     };
 
-    this.releases.push(release);
+    await this.releasesRepository.insert(release);
 
     this.domainEventsService.publish({
       name: 'release.created',
@@ -127,47 +133,56 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     return release;
   }
 
-  listReleases(organizationId: string): ReleaseEntity[] {
-    return this.releases
-      .filter((release) => release.organizationId === organizationId)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  async listReleases(organizationId: string): Promise<ReleaseEntity[]> {
+    return this.releasesRepository.listByOrganization(organizationId);
   }
 
-  getRoadmapOverview(organizationId: string) {
-    const features = this.productService.listFeatures(
-      {
-        page: 1,
-        limit: 1000,
-      },
-      organizationId,
+  async getRoadmapOverview(organizationId: string) {
+    const features = (
+      await this.productService.listFeatures(
+        {
+          page: 1,
+          limit: 1000,
+        },
+        organizationId,
+      )
     ).items;
 
-    const sprints = this.engineeringService.listSprints(
-      {
-        page: 1,
-        limit: 1000,
-      },
-      organizationId,
+    const sprints = (
+      await this.engineeringService.listSprints(
+        {
+          page: 1,
+          limit: 1000,
+        },
+        organizationId,
+      )
     ).items;
 
-    const requests = this.requestsService.list(
-      {
-        page: 1,
-        limit: 1000,
-        includeArchived: false,
-      },
-      organizationId,
+    const requests = (
+      await this.requestsService.list(
+        {
+          page: 1,
+          limit: 1000,
+          includeArchived: false,
+        },
+        organizationId,
+      )
     ).items;
 
-    const tasks = this.engineeringService.listTasks(
-      {
-        page: 1,
-        limit: 1000,
-      },
-      organizationId,
+    const tasks = (
+      await this.engineeringService.listTasks(
+        {
+          page: 1,
+          limit: 1000,
+        },
+        organizationId,
+      )
     ).items;
 
-    const upcomingReleases = this.listReleases(organizationId).slice(0, 5);
+    const upcomingReleases = (await this.listReleases(organizationId)).slice(
+      0,
+      5,
+    );
 
     return {
       counts: {
@@ -178,11 +193,9 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         releases: upcomingReleases.length,
       },
       featureStatusBreakdown: {
-        discovery: features.filter((item) => item.status === 'Discovery')
-          .length,
+        discovery: features.filter((item) => item.status === 'Discovery').length,
         planned: features.filter((item) => item.status === 'Planned').length,
-        inProgress: features.filter((item) => item.status === 'In Progress')
-          .length,
+        inProgress: features.filter((item) => item.status === 'In Progress').length,
         done: features.filter((item) => item.status === 'Done').length,
       },
       sprintStatusBreakdown: {
@@ -191,31 +204,41 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         completed: sprints.filter((item) => item.status === 'Completed').length,
       },
       releases: upcomingReleases,
-      recentNotifications: this.listNotifications(organizationId).slice(0, 10),
+      recentNotifications: (await this.listNotifications(organizationId)).slice(
+        0,
+        10,
+      ),
     };
   }
 
-  getRequestTraceability(requestId: string, organizationId: string) {
-    const request = this.requestsService.findOneById(requestId, organizationId);
-
-    const allFeatures = this.productService.listFeatures(
-      {
-        page: 1,
-        limit: 1000,
-      },
+  async getRequestTraceability(requestId: string, organizationId: string) {
+    const request = await this.requestsService.findOneById(
+      requestId,
       organizationId,
+    );
+
+    const allFeatures = (
+      await this.productService.listFeatures(
+        {
+          page: 1,
+          limit: 1000,
+        },
+        organizationId,
+      )
     ).items;
 
     const features = allFeatures.filter((feature) =>
       feature.requestIds.includes(requestId),
     );
 
-    const allTasks = this.engineeringService.listTasks(
-      {
-        page: 1,
-        limit: 1000,
-      },
-      organizationId,
+    const allTasks = (
+      await this.engineeringService.listTasks(
+        {
+          page: 1,
+          limit: 1000,
+        },
+        organizationId,
+      )
     ).items;
 
     const featureIds = new Set(features.map((feature) => feature.id));
@@ -229,35 +252,41 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       ),
     );
 
-    const sprints = sprintIds.map((sprintId) =>
-      this.engineeringService.getSprintProgress(sprintId, organizationId),
+    const sprints = await Promise.all(
+      sprintIds.map((sprintId) =>
+        this.engineeringService.getSprintProgress(sprintId, organizationId),
+      ),
     );
 
-    const releases = this.listReleases(organizationId).filter(
+    const releases = (await this.listReleases(organizationId)).filter(
       (release) =>
         release.featureIds.some((featureId) => featureIds.has(featureId)) ||
         release.sprintIds.some((sprintId) => sprintIds.includes(sprintId)),
     );
 
-    const customers = request.customerIds
-      .map((id) => {
-        try {
-          return this.customersService.findOneById(id, organizationId);
-        } catch {
-          return undefined;
-        }
-      })
-      .filter(Boolean);
+    const customers = (
+      await Promise.all(
+        request.customerIds.map(async (id) => {
+          try {
+            return await this.customersService.findOneById(id, organizationId);
+          } catch {
+            return undefined;
+          }
+        }),
+      )
+    ).filter(Boolean);
 
-    const companies = request.companyIds
-      .map((id) => {
-        try {
-          return this.companiesService.findOneById(id, organizationId);
-        } catch {
-          return undefined;
-        }
-      })
-      .filter(Boolean);
+    const companies = (
+      await Promise.all(
+        request.companyIds.map(async (id) => {
+          try {
+            return await this.companiesService.findOneById(id, organizationId);
+          } catch {
+            return undefined;
+          }
+        }),
+      )
+    ).filter(Boolean);
 
     return {
       request,
@@ -270,12 +299,12 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  private handleDomainEvent(event: DomainEvent): void {
+  private async handleDomainEvent(event: DomainEvent): Promise<void> {
     if (!event.organizationId) {
       return;
     }
 
-    const preference = this.getEffectivePreference(event.organizationId);
+    const preference = await this.getEffectivePreference(event.organizationId);
     const shouldNotify = this.shouldNotifyByPreference(event.name, preference);
 
     if (!shouldNotify) {
@@ -292,23 +321,24 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       payload: event.payload as Record<string, unknown>,
     };
 
-    this.notifications.push(notification);
+    await this.notificationsRepository.insert(notification);
   }
 
-  private findOrCreatePreference(
+  private async findOrCreatePreference(
     organizationId: string,
     teamId?: string,
-  ): NotificationPreferenceEntity {
-    let existing = this.preferences.find(
-      (item) =>
-        item.organizationId === organizationId && item.teamId === teamId,
-    );
+  ): Promise<NotificationPreferenceEntity> {
+    const existing =
+      await this.notificationPreferencesRepository.findByOrganizationAndTeam(
+        organizationId,
+        teamId,
+      );
 
     if (existing) {
       return existing;
     }
 
-    existing = {
+    const created: NotificationPreferenceEntity = {
       organizationId,
       teamId,
       notifyRequestStatus: true,
@@ -318,20 +348,23 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       updatedAt: new Date().toISOString(),
     };
 
-    this.preferences.push(existing);
-    return existing;
+    await this.notificationPreferencesRepository.upsert(created);
+    return created;
   }
 
-  private getEffectivePreference(
+  private async getEffectivePreference(
     organizationId: string,
-  ): NotificationPreferenceEntity {
-    const organizationPreference = this.preferences.find(
-      (item) => item.organizationId === organizationId && !item.teamId,
-    );
+  ): Promise<NotificationPreferenceEntity> {
+    const organizationPreference =
+      await this.notificationPreferencesRepository.findByOrganizationAndTeam(
+        organizationId,
+      );
 
-    return (
-      organizationPreference ?? this.findOrCreatePreference(organizationId)
-    );
+    if (organizationPreference) {
+      return organizationPreference;
+    }
+
+    return this.findOrCreatePreference(organizationId);
   }
 
   private shouldNotifyByPreference(

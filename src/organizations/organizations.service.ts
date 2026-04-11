@@ -4,17 +4,20 @@ import { Role } from '../common/auth/role.enum';
 import { DomainEventsService } from '../common/events/domain-events.service';
 import { UsersService } from '../users/users.service';
 import { OrganizationEntity } from './entities/organization.entity';
+import { OrganizationsRepository } from './repositories/organizations.repository';
 
 @Injectable()
 export class OrganizationsService {
-  private readonly organizations: OrganizationEntity[] = [];
-
   constructor(
     private readonly usersService: UsersService,
+    private readonly organizationsRepository: OrganizationsRepository,
     private readonly domainEventsService: DomainEventsService,
   ) {}
 
-  createForUser(name: string, userId: string): OrganizationEntity {
+  async createForUser(
+    name: string,
+    userId: string,
+  ): Promise<OrganizationEntity> {
     const normalizedName = name.trim();
 
     if (normalizedName.length < 2) {
@@ -32,9 +35,9 @@ export class OrganizationsService {
       updatedAt: now,
     };
 
-    this.organizations.push(organization);
-    this.usersService.addMembership(userId, organization.id, Role.Admin);
-    this.usersService.setCurrentOrganization(userId, organization.id);
+    await this.organizationsRepository.insert(organization);
+    await this.usersService.addMembership(userId, organization.id, Role.Admin);
+    await this.usersService.setCurrentOrganization(userId, organization.id);
 
     this.domainEventsService.publish({
       name: 'organization.created',
@@ -50,12 +53,12 @@ export class OrganizationsService {
     return organization;
   }
 
-  ensureBootstrapOrganization(
+  async ensureBootstrapOrganization(
     userId: string,
     userName: string,
     preferredOrganizationName?: string,
-  ): OrganizationEntity {
-    const user = this.usersService.findById(userId);
+  ): Promise<OrganizationEntity> {
+    const user = await this.usersService.findById(userId);
 
     if (!user) {
       throw new BadRequestException(
@@ -64,14 +67,14 @@ export class OrganizationsService {
     }
 
     if (user.memberships.length > 0) {
-      const context = this.usersService.resolveUserContext(userId);
+      const context = await this.usersService.resolveUserContext(userId);
       if (!context) {
         throw new BadRequestException(
           'Could not resolve organization context.',
         );
       }
 
-      const existingOrganization = this.findById(context.organizationId);
+      const existingOrganization = await this.findById(context.organizationId);
       if (!existingOrganization) {
         throw new BadRequestException('Current organization was not found.');
       }
@@ -86,16 +89,16 @@ export class OrganizationsService {
     return this.createForUser(fallbackOrganizationName, userId);
   }
 
-  getCurrentForUser(
+  async getCurrentForUser(
     userId: string,
-  ): { organization: OrganizationEntity; role: Role } | null {
-    const userContext = this.usersService.resolveUserContext(userId);
+  ): Promise<{ organization: OrganizationEntity; role: Role } | null> {
+    const userContext = await this.usersService.resolveUserContext(userId);
 
     if (!userContext) {
       return null;
     }
 
-    const organization = this.findById(userContext.organizationId);
+    const organization = await this.findById(userContext.organizationId);
     if (!organization) {
       return null;
     }
@@ -106,7 +109,7 @@ export class OrganizationsService {
     };
   }
 
-  findById(id: string): OrganizationEntity | undefined {
-    return this.organizations.find((organization) => organization.id === id);
+  findById(id: string): Promise<OrganizationEntity | undefined> {
+    return this.organizationsRepository.findById(id);
   }
 }

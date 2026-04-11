@@ -75,12 +75,12 @@ export class EngineeringController {
   @ApiCreatedResponse({ description: 'Sprint created successfully.' })
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  createSprint(
+  async createSprint(
     @CurrentUser() user: AuthenticatedUser,
     @Body(new ZodValidationPipe(CreateSprintSchema)) body: CreateSprintInput,
   ) {
     return {
-      sprint: this.engineeringService.createSprint(body, user),
+      sprint: await this.engineeringService.createSprint(body, user),
     };
   }
 
@@ -88,7 +88,7 @@ export class EngineeringController {
   @ApiOperation({ summary: 'List sprints with pagination and filters' })
   @ApiOkResponse({ description: 'Returns paginated sprints.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  listSprints(
+  async listSprints(
     @CurrentUser() user: AuthenticatedUser,
     @Query(new ZodValidationPipe(QuerySprintsSchema)) query: QuerySprintsInput,
   ) {
@@ -110,13 +110,13 @@ export class EngineeringController {
   @ApiOkResponse({ description: 'Sprint updated successfully.' })
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  updateSprint(
+  async updateSprint(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
     @Body(new ZodValidationPipe(UpdateSprintSchema)) body: UpdateSprintInput,
   ) {
     return {
-      sprint: this.engineeringService.updateSprint(id, body, user),
+      sprint: await this.engineeringService.updateSprint(id, body, user),
     };
   }
 
@@ -125,7 +125,7 @@ export class EngineeringController {
   @ApiParam({ name: 'id', description: 'Sprint id' })
   @ApiOkResponse({ description: 'Returns sprint progress.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  getSprintProgress(
+  async getSprintProgress(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
   ) {
@@ -149,12 +149,12 @@ export class EngineeringController {
   @ApiCreatedResponse({ description: 'Task created successfully.' })
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  createTask(
+  async createTask(
     @CurrentUser() user: AuthenticatedUser,
     @Body(new ZodValidationPipe(CreateTaskSchema)) body: CreateTaskInput,
   ) {
     return {
-      task: this.engineeringService.createTask(body, user),
+      task: await this.engineeringService.createTask(body, user),
     };
   }
 
@@ -162,7 +162,7 @@ export class EngineeringController {
   @ApiOperation({ summary: 'List tasks with pagination and filters' })
   @ApiOkResponse({ description: 'Returns paginated tasks.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  listTasks(
+  async listTasks(
     @CurrentUser() user: AuthenticatedUser,
     @Query(new ZodValidationPipe(QueryTasksSchema)) query: QueryTasksInput,
   ) {
@@ -183,13 +183,13 @@ export class EngineeringController {
   @ApiOkResponse({ description: 'Task updated successfully.' })
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  updateTask(
+  async updateTask(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
     @Body(new ZodValidationPipe(UpdateTaskSchema)) body: UpdateTaskInput,
   ) {
     return {
-      task: this.engineeringService.updateTask(id, body, user),
+      task: await this.engineeringService.updateTask(id, body, user),
     };
   }
 
@@ -201,13 +201,17 @@ export class EngineeringController {
   @ApiCreatedResponse({ description: 'Task assigned to sprint.' })
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  assignSprint(
+  async assignSprint(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
     @Param('sprintId') sprintId: string,
   ) {
     return {
-      task: this.engineeringService.assignTaskToSprint(id, sprintId, user),
+      task: await this.engineeringService.assignTaskToSprint(
+        id,
+        sprintId,
+        user,
+      ),
     };
   }
 
@@ -219,7 +223,7 @@ export class EngineeringController {
   @ApiParam({ name: 'id', description: 'Task id' })
   @ApiOkResponse({ description: 'Returns task traceability graph.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  getTaskTraceability(
+  async getTaskTraceability(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
   ) {

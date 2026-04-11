@@ -4,6 +4,8 @@ import { DomainEventsService } from '../common/events/domain-events.service';
 import { CustomersService } from '../customers/customers.service';
 import { RequestStatus } from '../requests/entities/request-status.enum';
 import { RequestsService } from '../requests/requests.service';
+import { TestingRequestsRepository } from '../requests/repositories/testing-requests.repository';
+import { REQUESTS_REPOSITORY } from '../requests/repositories/requests-repository.interface';
 import type { AuthenticatedUser } from '../common/auth/authenticated-user.interface';
 import { Role } from '../common/auth/role.enum';
 import { FeatureStatus } from './entities/feature-status.enum';
@@ -30,6 +32,11 @@ describe('ProductService', () => {
         ProductService,
         DomainEventsService,
         RequestsService,
+        TestingRequestsRepository,
+        {
+          provide: REQUESTS_REPOSITORY,
+          useExisting: TestingRequestsRepository,
+        },
         CustomersService,
         CompaniesService,
       ],

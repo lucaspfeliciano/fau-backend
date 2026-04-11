@@ -22,7 +22,7 @@ export class JwtAuthGuard implements CanActivate {
     private readonly usersService: UsersService,
   ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context
       .switchToHttp()
       .getRequest<Request & { user?: AuthenticatedUser }>();
@@ -33,14 +33,14 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     const payload = this.verifyToken(token);
-    const user = this.usersService.findById(payload.sub);
+    const user = await this.usersService.findById(payload.sub);
 
     if (!user) {
       throw new UnauthorizedException('User not found.');
     }
 
     const preferredOrganizationId = this.readOrganizationHeader(request);
-    const userContext = this.usersService.resolveUserContext(
+    const userContext = await this.usersService.resolveUserContext(
       user.id,
       preferredOrganizationId,
     );

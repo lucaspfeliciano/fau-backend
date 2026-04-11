@@ -2,11 +2,18 @@ import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { Role } from '../common/auth/role.enum';
 import { UserEntity } from './entities/user.entity';
+import { UsersRepository } from './repositories/users.repository';
 
 export interface GoogleProfileInput {
   googleId: string;
   email: string;
   name: string;
+}
+
+export interface LocalAccountInput {
+  email: string;
+  name: string;
+  passwordHash: string;
 }
 
 export interface UserContext {
@@ -16,26 +23,22 @@ export interface UserContext {
 
 @Injectable()
 export class UsersService {
-  private readonly users: UserEntity[] = [];
+  constructor(private readonly usersRepository: UsersRepository) {}
 
-  findById(id: string): UserEntity | undefined {
-    return this.users.find((user) => user.id === id);
+  findById(id: string): Promise<UserEntity | undefined> {
+    return this.usersRepository.findById(id);
   }
 
-  findByEmail(email: string): UserEntity | undefined {
-    const normalizedEmail = email.trim().toLowerCase();
-    return this.users.find(
-      (user) => user.email.toLowerCase() === normalizedEmail,
-    );
+  findByEmail(email: string): Promise<UserEntity | undefined> {
+    return this.usersRepository.findByEmail(email);
   }
 
-  findOrCreateFromGoogle(input: GoogleProfileInput): UserEntity {
+  async findOrCreateFromGoogle(input: GoogleProfileInput): Promise<UserEntity> {
     const normalizedEmail = input.email.trim().toLowerCase();
 
-    const existingUser = this.users.find(
-      (user) =>
-        user.email.toLowerCase() === normalizedEmail ||
-        user.googleId === input.googleId,
+    const existingUser = await this.usersRepository.findByEmailOrGoogleId(
+      normalizedEmail,
+      input.googleId,
     );
 
     if (existingUser) {
@@ -43,6 +46,7 @@ export class UsersService {
       existingUser.email = normalizedEmail;
       existingUser.googleId = input.googleId;
       this.touch(existingUser);
+      await this.usersRepository.update(existingUser);
       return existingUser;
     }
 
@@ -57,16 +61,37 @@ export class UsersService {
       updatedAt: now,
     };
 
-    this.users.push(newUser);
+    await this.usersRepository.insert(newUser);
     return newUser;
   }
 
-  addMembership(
+  async createLocalAccount(input: LocalAccountInput): Promise<UserEntity> {
+    const now = new Date().toISOString();
+    const user: UserEntity = {
+      id: randomUUID(),
+      email: input.email.trim().toLowerCase(),
+      name: input.name.trim(),
+      memberships: [],
+      passwordHash: input.passwordHash,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await this.usersRepository.insert(user);
+    return user;
+  }
+
+  async updateUser(user: UserEntity): Promise<void> {
+    this.touch(user);
+    await this.usersRepository.update(user);
+  }
+
+  async addMembership(
     userId: string,
     organizationId: string,
     role: Role,
-  ): UserEntity | null {
-    const user = this.findById(userId);
+  ): Promise<UserEntity | null> {
+    const user = await this.findById(userId);
     if (!user) {
       return null;
     }
@@ -89,15 +114,16 @@ export class UsersService {
     }
 
     this.touch(user);
+    await this.usersRepository.update(user);
     return user;
   }
 
-  setMembershipRole(
+  async setMembershipRole(
     userId: string,
     organizationId: string,
     role: Role,
-  ): boolean {
-    const user = this.findById(userId);
+  ): Promise<boolean> {
+    const user = await this.findById(userId);
     if (!user) {
       return false;
     }
@@ -112,11 +138,15 @@ export class UsersService {
 
     membership.role = role;
     this.touch(user);
+    await this.usersRepository.update(user);
     return true;
   }
 
-  setCurrentOrganization(userId: string, organizationId: string): boolean {
-    const user = this.findById(userId);
+  async setCurrentOrganization(
+    userId: string,
+    organizationId: string,
+  ): Promise<boolean> {
+    const user = await this.findById(userId);
 
     if (!user) {
       return false;
@@ -132,14 +162,15 @@ export class UsersService {
 
     user.currentOrganizationId = organizationId;
     this.touch(user);
+    await this.usersRepository.update(user);
     return true;
   }
 
-  resolveUserContext(
+  async resolveUserContext(
     userId: string,
     preferredOrganizationId?: string,
-  ): UserContext | null {
-    const user = this.findById(userId);
+  ): Promise<UserContext | null> {
+    const user = await this.findById(userId);
 
     if (!user || user.memberships.length === 0) {
       return null;
@@ -153,6 +184,7 @@ export class UsersService {
       if (preferredMembership) {
         user.currentOrganizationId = preferredOrganizationId;
         this.touch(user);
+        await this.usersRepository.update(user);
         return {
           organizationId: preferredMembership.organizationId,
           role: preferredMembership.role,
@@ -177,6 +209,7 @@ export class UsersService {
     const fallbackMembership = user.memberships[0];
     user.currentOrganizationId = fallbackMembership.organizationId;
     this.touch(user);
+    await this.usersRepository.update(user);
 
     return {
       organizationId: fallbackMembership.organizationId,

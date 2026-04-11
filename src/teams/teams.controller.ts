@@ -34,13 +34,17 @@ export class TeamsController {
   @ApiForbiddenResponse({ description: 'Role does not allow team creation.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   @Roles(Role.Admin, Role.Editor)
-  create(
+  async create(
     @CurrentUser() user: AuthenticatedUser,
     @Body(new ZodValidationPipe(CreateTeamSchema))
     body: CreateTeamInput,
   ) {
     return {
-      team: this.teamsService.create(body.name, user.organizationId, user.id),
+      team: await this.teamsService.create(
+        body.name,
+        user.organizationId,
+        user.id,
+      ),
     };
   }
 
@@ -48,9 +52,9 @@ export class TeamsController {
   @ApiOperation({ summary: 'List teams for current organization' })
   @ApiOkResponse({ description: 'Returns teams for current tenant.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  list(@CurrentUser() user: AuthenticatedUser) {
+  async list(@CurrentUser() user: AuthenticatedUser) {
     return {
-      items: this.teamsService.listByOrganization(user.organizationId),
+      items: await this.teamsService.listByOrganization(user.organizationId),
     };
   }
 }

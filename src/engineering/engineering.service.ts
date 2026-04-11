@@ -18,6 +18,8 @@ import { SprintStatus } from './entities/sprint-status.enum';
 import type { SprintEntity } from './entities/sprint.entity';
 import { TaskStatus } from './entities/task-status.enum';
 import type { TaskEntity } from './entities/task.entity';
+import { SprintsRepository } from './repositories/sprints.repository';
+import { TasksRepository } from './repositories/tasks.repository';
 
 export interface PaginatedResult<T> {
   items: T[];
@@ -41,23 +43,22 @@ export interface SprintProgressResult {
 
 export interface TaskTraceabilityResult {
   task: TaskEntity;
-  traceability: ReturnType<ProductService['getFeatureTraceability']>;
+  traceability: Awaited<ReturnType<ProductService['getFeatureTraceability']>>;
 }
 
 @Injectable()
 export class EngineeringService {
-  private readonly sprints: SprintEntity[] = [];
-  private readonly tasks: TaskEntity[] = [];
-
   constructor(
     private readonly domainEventsService: DomainEventsService,
     private readonly productService: ProductService,
+    private readonly sprintsRepository: SprintsRepository,
+    private readonly tasksRepository: TasksRepository,
   ) {}
 
-  createSprint(
+  async createSprint(
     input: CreateSprintInput,
     actor: AuthenticatedUser,
-  ): SprintEntity {
+  ): Promise<SprintEntity> {
     this.ensureSprintDates(input.startDate, input.endDate);
 
     const now = new Date().toISOString();
@@ -83,7 +84,7 @@ export class EngineeringService {
       updatedAt: now,
     };
 
-    this.sprints.push(sprint);
+    await this.sprintsRepository.insert(sprint);
 
     this.domainEventsService.publish({
       name: 'engineering.sprint_created',
@@ -99,12 +100,14 @@ export class EngineeringService {
     return sprint;
   }
 
-  listSprints(
+  async listSprints(
     query: QuerySprintsInput,
     organizationId: string,
-  ): PaginatedResult<SprintEntity> {
-    const filtered = this.sprints
-      .filter((sprint) => sprint.organizationId === organizationId)
+  ): Promise<PaginatedResult<SprintEntity>> {
+    const sprints =
+      await this.sprintsRepository.listByOrganization(organizationId);
+
+    const filtered = sprints
       .filter((sprint) => {
         if (!query.status) {
           return true;
@@ -124,12 +127,12 @@ export class EngineeringService {
     return this.paginate(filtered, query.page, query.limit);
   }
 
-  updateSprint(
+  async updateSprint(
     sprintId: string,
     input: UpdateSprintInput,
     actor: AuthenticatedUser,
-  ): SprintEntity {
-    const sprint = this.findSprintById(sprintId, actor.organizationId);
+  ): Promise<SprintEntity> {
+    const sprint = await this.findSprintById(sprintId, actor.organizationId);
     const previousStatus = sprint.status;
 
     const nextStartDate = input.startDate ?? sprint.startDate;
@@ -150,7 +153,10 @@ export class EngineeringService {
 
     if (input.status !== undefined && input.status !== sprint.status) {
       if (input.status === SprintStatus.Completed) {
-        const openTasks = this.tasks.filter(
+        const tasks = await this.tasksRepository.listByOrganization(
+          actor.organizationId,
+        );
+        const openTasks = tasks.filter(
           (task) =>
             task.organizationId === actor.organizationId &&
             task.sprintId === sprint.id &&
@@ -192,6 +198,7 @@ export class EngineeringService {
     }
 
     sprint.updatedAt = new Date().toISOString();
+    await this.sprintsRepository.update(sprint);
 
     this.domainEventsService.publish({
       name: 'engineering.sprint_updated',
@@ -206,14 +213,17 @@ export class EngineeringService {
     return sprint;
   }
 
-  createTask(input: CreateTaskInput, actor: AuthenticatedUser): TaskEntity {
-    const feature = this.productService.findFeatureById(
+  async createTask(
+    input: CreateTaskInput,
+    actor: AuthenticatedUser,
+  ): Promise<TaskEntity> {
+    const feature = await this.productService.findFeatureById(
       input.featureId,
       actor.organizationId,
     );
 
     if (input.sprintId) {
-      this.findSprintById(input.sprintId, actor.organizationId);
+      await this.findSprintById(input.sprintId, actor.organizationId);
     }
 
     const now = new Date().toISOString();
@@ -242,7 +252,7 @@ export class EngineeringService {
       updatedAt: now,
     };
 
-    this.tasks.push(task);
+    await this.tasksRepository.insert(task);
 
     this.domainEventsService.publish({
       name: 'engineering.task_created',
@@ -257,17 +267,18 @@ export class EngineeringService {
       },
     });
 
-    this.syncFeatureExecutionStatus(task.featureId, actor);
+    await this.syncFeatureExecutionStatus(task.featureId, actor);
 
     return task;
   }
 
-  listTasks(
+  async listTasks(
     query: QueryTasksInput,
     organizationId: string,
-  ): PaginatedResult<TaskEntity> {
-    const filtered = this.tasks
-      .filter((task) => task.organizationId === organizationId)
+  ): Promise<PaginatedResult<TaskEntity>> {
+    const tasks = await this.tasksRepository.listByOrganization(organizationId);
+
+    const filtered = tasks
       .filter((task) => {
         if (!query.status) {
           return true;
@@ -305,12 +316,12 @@ export class EngineeringService {
     return this.paginate(filtered, query.page, query.limit);
   }
 
-  updateTask(
+  async updateTask(
     taskId: string,
     input: UpdateTaskInput,
     actor: AuthenticatedUser,
-  ): TaskEntity {
-    const task = this.findTaskById(taskId, actor.organizationId);
+  ): Promise<TaskEntity> {
+    const task = await this.findTaskById(taskId, actor.organizationId);
     const previousStatus = task.status;
     const previousFeatureId = task.featureId;
 
@@ -327,7 +338,7 @@ export class EngineeringService {
     }
 
     if (input.featureId !== undefined) {
-      const feature = this.productService.findFeatureById(
+      const feature = await this.productService.findFeatureById(
         input.featureId,
         actor.organizationId,
       );
@@ -339,7 +350,7 @@ export class EngineeringService {
       if (input.sprintId === null) {
         task.sprintId = undefined;
       } else {
-        this.findSprintById(input.sprintId, actor.organizationId);
+        await this.findSprintById(input.sprintId, actor.organizationId);
         task.sprintId = input.sprintId;
       }
     }
@@ -368,6 +379,7 @@ export class EngineeringService {
     }
 
     task.updatedAt = new Date().toISOString();
+    await this.tasksRepository.update(task);
 
     this.domainEventsService.publish({
       name: 'engineering.task_updated',
@@ -379,20 +391,20 @@ export class EngineeringService {
       },
     });
 
-    this.syncFeatureExecutionStatus(previousFeatureId, actor);
+    await this.syncFeatureExecutionStatus(previousFeatureId, actor);
     if (previousFeatureId !== task.featureId) {
-      this.syncFeatureExecutionStatus(task.featureId, actor);
+      await this.syncFeatureExecutionStatus(task.featureId, actor);
     }
 
     return task;
   }
 
-  assignTaskToSprint(
+  async assignTaskToSprint(
     taskId: string,
     sprintId: string,
     actor: AuthenticatedUser,
-  ): TaskEntity {
-    this.findSprintById(sprintId, actor.organizationId);
+  ): Promise<TaskEntity> {
+    await this.findSprintById(sprintId, actor.organizationId);
 
     return this.updateTask(
       taskId,
@@ -403,12 +415,13 @@ export class EngineeringService {
     );
   }
 
-  getSprintProgress(
+  async getSprintProgress(
     sprintId: string,
     organizationId: string,
-  ): SprintProgressResult {
-    const sprint = this.findSprintById(sprintId, organizationId);
-    const sprintTasks = this.tasks.filter(
+  ): Promise<SprintProgressResult> {
+    const sprint = await this.findSprintById(sprintId, organizationId);
+    const tasks = await this.tasksRepository.listByOrganization(organizationId);
+    const sprintTasks = tasks.filter(
       (task) =>
         task.organizationId === organizationId && task.sprintId === sprint.id,
     );
@@ -419,12 +432,12 @@ export class EngineeringService {
     };
   }
 
-  getTaskTraceability(
+  async getTaskTraceability(
     taskId: string,
     organizationId: string,
-  ): TaskTraceabilityResult {
-    const task = this.findTaskById(taskId, organizationId);
-    const traceability = this.productService.getFeatureTraceability(
+  ): Promise<TaskTraceabilityResult> {
+    const task = await this.findTaskById(taskId, organizationId);
+    const traceability = await this.productService.getFeatureTraceability(
       task.featureId,
       organizationId,
     );
@@ -435,15 +448,22 @@ export class EngineeringService {
     };
   }
 
-  getTaskById(taskId: string, organizationId: string): TaskEntity {
+  async getTaskById(
+    taskId: string,
+    organizationId: string,
+  ): Promise<TaskEntity> {
     return this.findTaskById(taskId, organizationId);
   }
 
-  private syncFeatureExecutionStatus(
+  private async syncFeatureExecutionStatus(
     featureId: string,
     actor: AuthenticatedUser,
-  ): void {
-    const featureTasks = this.tasks.filter(
+  ): Promise<void> {
+    const tasks = await this.tasksRepository.listByOrganization(
+      actor.organizationId,
+    );
+
+    const featureTasks = tasks.filter(
       (task) =>
         task.organizationId === actor.organizationId &&
         task.featureId === featureId,
@@ -464,7 +484,7 @@ export class EngineeringService {
       nextFeatureStatus = FeatureStatus.Planned;
     }
 
-    this.productService.updateFeature(
+    await this.productService.updateFeature(
       featureId,
       {
         status: nextFeatureStatus,
@@ -504,9 +524,17 @@ export class EngineeringService {
   private findSprintById(
     sprintId: string,
     organizationId: string,
-  ): SprintEntity {
-    const sprint = this.sprints.find(
-      (item) => item.id === sprintId && item.organizationId === organizationId,
+  ): Promise<SprintEntity> {
+    return this.findSprintByIdOrFail(sprintId, organizationId);
+  }
+
+  private async findSprintByIdOrFail(
+    sprintId: string,
+    organizationId: string,
+  ): Promise<SprintEntity> {
+    const sprint = await this.sprintsRepository.findById(
+      sprintId,
+      organizationId,
     );
 
     if (!sprint) {
@@ -516,16 +544,42 @@ export class EngineeringService {
     return sprint;
   }
 
-  private findTaskById(taskId: string, organizationId: string): TaskEntity {
-    const task = this.tasks.find(
-      (item) => item.id === taskId && item.organizationId === organizationId,
-    );
+  private async findTaskById(
+    taskId: string,
+    organizationId: string,
+  ): Promise<TaskEntity> {
+    const task = await this.tasksRepository.findById(taskId, organizationId);
 
     if (!task) {
       throw new NotFoundException('Task not found.');
     }
 
     return task;
+  }
+
+  private async listTasksByOrganization(
+    organizationId: string,
+  ): Promise<TaskEntity[]> {
+    return this.tasksRepository.listByOrganization(organizationId);
+  }
+
+  private async listSprintsByOrganization(
+    organizationId: string,
+  ): Promise<SprintEntity[]> {
+    return this.sprintsRepository.listByOrganization(organizationId);
+  }
+
+  private async filterOpenTasksForSprint(
+    sprintId: string,
+    organizationId: string,
+  ): Promise<TaskEntity[]> {
+    const tasks = await this.listTasksByOrganization(organizationId);
+    return tasks.filter(
+      (task) =>
+        task.organizationId === organizationId &&
+        task.sprintId === sprintId &&
+        task.status !== TaskStatus.Done,
+    );
   }
 
   private ensureSprintDates(startDate: string, endDate: string): void {

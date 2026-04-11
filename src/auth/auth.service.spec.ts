@@ -13,8 +13,8 @@ describe('AuthService', () => {
     authService = moduleFixture.get<AuthService>(AuthService);
   });
 
-  it('should create a user context and token on Google login', () => {
-    const response = authService.loginWithGoogle({
+  it('should create a user context and token on Google login', async () => {
+    const response = await authService.loginWithGoogle({
       googleId: 'google-auth-spec-123456',
       email: 'spec@example.com',
       name: 'Spec User',

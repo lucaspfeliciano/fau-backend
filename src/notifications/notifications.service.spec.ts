@@ -7,6 +7,8 @@ import { CustomersService } from '../customers/customers.service';
 import { EngineeringService } from '../engineering/engineering.service';
 import { ProductService } from '../product/product.service';
 import { RequestsService } from '../requests/requests.service';
+import { TestingRequestsRepository } from '../requests/repositories/testing-requests.repository';
+import { REQUESTS_REPOSITORY } from '../requests/repositories/requests-repository.interface';
 import { NotificationsService } from './notifications.service';
 
 describe('NotificationsService', () => {
@@ -31,6 +33,11 @@ describe('NotificationsService', () => {
         CompaniesService,
         CustomersService,
         RequestsService,
+        TestingRequestsRepository,
+        {
+          provide: REQUESTS_REPOSITORY,
+          useExisting: TestingRequestsRepository,
+        },
         ProductService,
         EngineeringService,
       ],

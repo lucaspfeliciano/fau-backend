@@ -5,7 +5,6 @@ import { DomainEventsService } from '../common/events/domain-events.service';
 import { CompaniesService } from '../companies/companies.service';
 import { CustomersService } from '../customers/customers.service';
 import { EngineeringService } from '../engineering/engineering.service';
-import { TaskStatus } from '../engineering/entities/task-status.enum';
 import { AiProcessingService } from '../ai-processing/ai-processing.service';
 import { RequestSourceType } from '../requests/entities/request-source-type.enum';
 import type { HubSpotSyncInput } from './dto/hubspot-sync.schema';
@@ -18,8 +17,12 @@ import { LinearConnector } from './connectors/linear.connector';
 import { SlackConnector, type SlackConfig } from './connectors/slack.connector';
 import type { ExternalMappingEntity } from './entities/external-mapping.entity';
 import { IntegrationProvider } from './entities/integration-provider.enum';
+import { ExternalMappingsRepository } from './repositories/external-mappings.repository';
+import { IntegrationConfigsRepository } from './repositories/integration-configs.repository';
+import { IntegrationCursorsRepository } from './repositories/integration-cursors.repository';
+import { IntegrationMetricsRepository } from './repositories/integration-metrics.repository';
 
-interface IntegrationMetrics {
+export interface IntegrationMetrics {
   success: number;
   failure: number;
 }
@@ -27,10 +30,6 @@ interface IntegrationMetrics {
 @Injectable()
 export class IntegrationsService {
   private readonly logger = new Logger(IntegrationsService.name);
-  private readonly slackConfigs = new Map<string, SlackConfig>();
-  private readonly externalMappings: ExternalMappingEntity[] = [];
-  private readonly metrics = new Map<string, IntegrationMetrics>();
-  private readonly slackEventCursor = new Map<string, number>();
 
   constructor(
     private readonly domainEventsService: DomainEventsService,
@@ -41,13 +40,20 @@ export class IntegrationsService {
     private readonly customersService: CustomersService,
     private readonly engineeringService: EngineeringService,
     private readonly aiProcessingService: AiProcessingService,
+    private readonly integrationConfigsRepository: IntegrationConfigsRepository,
+    private readonly externalMappingsRepository: ExternalMappingsRepository,
+    private readonly integrationMetricsRepository: IntegrationMetricsRepository,
+    private readonly integrationCursorsRepository: IntegrationCursorsRepository,
   ) {}
 
-  configureSlack(input: SlackConfigInput, actor: AuthenticatedUser) {
-    this.slackConfigs.set(actor.organizationId, {
-      webhookUrl: input.webhookUrl,
-      defaultChannel: input.defaultChannel,
-    });
+  async configureSlack(input: SlackConfigInput, actor: AuthenticatedUser) {
+    await this.integrationConfigsRepository.upsertSlackConfig(
+      actor.organizationId,
+      {
+        webhookUrl: input.webhookUrl,
+        defaultChannel: input.defaultChannel,
+      },
+    );
 
     return {
       configured: true,
@@ -57,15 +63,27 @@ export class IntegrationsService {
   }
 
   async syncSlackStatusEvents(actor: AuthenticatedUser) {
-    const config = this.slackConfigs.get(actor.organizationId);
-    if (!config) {
+    const configRecord = await this.integrationConfigsRepository.findSlackConfig(
+      actor.organizationId,
+    );
+
+    if (!configRecord) {
       throw new NotFoundException(
         'Slack integration is not configured for this organization.',
       );
     }
 
+    const config: SlackConfig = {
+      webhookUrl: configRecord.webhookUrl,
+      defaultChannel: configRecord.defaultChannel,
+    };
+
     const allEvents = this.domainEventsService.list();
-    const startIndex = this.slackEventCursor.get(actor.organizationId) ?? 0;
+    const startIndex = await this.integrationCursorsRepository.get(
+      actor.organizationId,
+      IntegrationProvider.Slack,
+    );
+
     const scopedEvents = allEvents.slice(startIndex).filter((event) => {
       if (event.organizationId !== actor.organizationId) {
         return false;
@@ -85,6 +103,7 @@ export class IntegrationsService {
       const text = `[${event.name}] ${JSON.stringify(event.payload)}`;
 
       await this.executeWithRetry(
+        actor.organizationId,
         IntegrationProvider.Slack,
         correlationId,
         () =>
@@ -101,7 +120,7 @@ export class IntegrationsService {
           ),
       );
 
-      this.registerMapping({
+      await this.registerMapping({
         organizationId: actor.organizationId,
         provider: IntegrationProvider.Slack,
         entityType: 'event',
@@ -112,7 +131,11 @@ export class IntegrationsService {
       delivered += 1;
     }
 
-    this.slackEventCursor.set(actor.organizationId, allEvents.length);
+    await this.integrationCursorsRepository.set(
+      actor.organizationId,
+      IntegrationProvider.Slack,
+      allEvents.length,
+    );
 
     return {
       delivered,
@@ -122,7 +145,9 @@ export class IntegrationsService {
 
   async syncHubSpot(input: HubSpotSyncInput, actor: AuthenticatedUser) {
     const correlationId = randomUUID();
+
     await this.executeWithRetry(
+      actor.organizationId,
       IntegrationProvider.HubSpot,
       correlationId,
       () => this.hubspotConnector.sync(),
@@ -134,7 +159,7 @@ export class IntegrationsService {
     const companyExternalMap = new Map<string, string>();
 
     for (const item of input.companies ?? []) {
-      const existingMap = this.findMapping(
+      const existingMap = await this.findMapping(
         actor.organizationId,
         IntegrationProvider.HubSpot,
         'company',
@@ -143,7 +168,7 @@ export class IntegrationsService {
       );
 
       if (existingMap) {
-        this.companiesService.update(
+        await this.companiesService.update(
           existingMap.internalId,
           {
             name: item.name,
@@ -153,7 +178,7 @@ export class IntegrationsService {
         );
         companyExternalMap.set(item.externalCompanyId, existingMap.internalId);
       } else {
-        const created = this.companiesService.create(
+        const created = await this.companiesService.create(
           {
             name: item.name,
             revenue: item.revenue,
@@ -161,13 +186,14 @@ export class IntegrationsService {
           actor,
         );
 
-        this.registerMapping({
+        await this.registerMapping({
           organizationId: actor.organizationId,
           provider: IntegrationProvider.HubSpot,
           entityType: 'company',
           internalId: created.id,
           externalId: item.externalCompanyId,
         });
+
         companyExternalMap.set(item.externalCompanyId, created.id);
       }
 
@@ -175,7 +201,7 @@ export class IntegrationsService {
     }
 
     for (const item of input.customers ?? []) {
-      const existingMap = this.findMapping(
+      const existingMap = await this.findMapping(
         actor.organizationId,
         IntegrationProvider.HubSpot,
         'customer',
@@ -183,38 +209,40 @@ export class IntegrationsService {
         'external',
       );
 
-      const resolvedCompanyId = item.externalCompanyId
+      const mappedCompany = item.externalCompanyId
         ? (companyExternalMap.get(item.externalCompanyId) ??
-          this.findMapping(
-            actor.organizationId,
-            IntegrationProvider.HubSpot,
-            'company',
-            item.externalCompanyId,
-            'external',
+          (
+            await this.findMapping(
+              actor.organizationId,
+              IntegrationProvider.HubSpot,
+              'company',
+              item.externalCompanyId,
+              'external',
+            )
           )?.internalId)
         : undefined;
 
       if (existingMap) {
-        this.customersService.update(
+        await this.customersService.update(
           existingMap.internalId,
           {
             name: item.name,
             email: item.email,
-            companyId: resolvedCompanyId,
+            companyId: mappedCompany,
           },
           actor,
         );
       } else {
-        const created = this.customersService.create(
+        const created = await this.customersService.create(
           {
             name: item.name,
             email: item.email,
-            companyId: resolvedCompanyId,
+            companyId: mappedCompany,
           },
           actor,
         );
 
-        this.registerMapping({
+        await this.registerMapping({
           organizationId: actor.organizationId,
           provider: IntegrationProvider.HubSpot,
           entityType: 'customer',
@@ -234,42 +262,42 @@ export class IntegrationsService {
 
   async syncLinear(input: LinearSyncInput, actor: AuthenticatedUser) {
     const taskIds = input.taskIds ?? [];
+    const tasksResult = await this.engineeringService.listTasks(
+      {
+        page: 1,
+        limit: 1000,
+      },
+      actor.organizationId,
+    );
+
     const targetTaskIds =
-      taskIds.length > 0
-        ? taskIds
-        : this.engineeringService
-            .listTasks(
-              {
-                page: 1,
-                limit: 1000,
-              },
-              actor.organizationId,
-            )
-            .items.map((task) => task.id);
+      taskIds.length > 0 ? taskIds : tasksResult.items.map((task) => task.id);
 
     let synced = 0;
 
     for (const taskId of targetTaskIds) {
-      const task = this.engineeringService.getTaskById(
+      const task = await this.engineeringService.getTaskById(
         taskId,
         actor.organizationId,
       );
-      const mapping = this.findMapping(
+
+      const mapping = await this.findMapping(
         actor.organizationId,
         IntegrationProvider.Linear,
         'task',
         task.id,
         'internal',
       );
-      const correlationId = randomUUID();
 
+      const correlationId = randomUUID();
       const result = await this.executeWithRetry(
+        actor.organizationId,
         IntegrationProvider.Linear,
         correlationId,
         () => this.linearConnector.upsertIssue(task, mapping?.externalId),
       );
 
-      this.registerMapping({
+      await this.registerMapping({
         organizationId: actor.organizationId,
         provider: IntegrationProvider.Linear,
         entityType: 'task',
@@ -285,11 +313,11 @@ export class IntegrationsService {
     };
   }
 
-  handleLinearWebhookTaskStatus(
+  async handleLinearWebhookTaskStatus(
     input: LinearWebhookTaskStatusInput,
     actor: AuthenticatedUser,
   ) {
-    const mapping = this.findMapping(
+    const mapping = await this.findMapping(
       actor.organizationId,
       IntegrationProvider.Linear,
       'task',
@@ -301,7 +329,7 @@ export class IntegrationsService {
       throw new NotFoundException('Linear task mapping not found.');
     }
 
-    const task = this.engineeringService.updateTask(
+    const task = await this.engineeringService.updateTask(
       mapping.internalId,
       {
         status: input.status,
@@ -329,19 +357,23 @@ export class IntegrationsService {
     );
   }
 
-  getStatus(organizationId: string) {
+  async getStatus(organizationId: string) {
     const metrics = {
-      slack: this.getMetrics(organizationId, IntegrationProvider.Slack),
-      hubspot: this.getMetrics(organizationId, IntegrationProvider.HubSpot),
-      linear: this.getMetrics(organizationId, IntegrationProvider.Linear),
+      slack: await this.getMetrics(organizationId, IntegrationProvider.Slack),
+      hubspot: await this.getMetrics(organizationId, IntegrationProvider.HubSpot),
+      linear: await this.getMetrics(organizationId, IntegrationProvider.Linear),
     };
 
-    const mappings = this.externalMappings.filter(
-      (item) => item.organizationId === organizationId,
+    const mappings = await this.externalMappingsRepository.listByOrganization(
+      organizationId,
+    );
+
+    const hasSlackConfig = Boolean(
+      await this.integrationConfigsRepository.findSlackConfig(organizationId),
     );
 
     return {
-      slackConfigured: this.slackConfigs.has(organizationId),
+      slackConfigured: hasSlackConfig,
       mappingsCount: mappings.length,
       mappingsByProvider: {
         slack: mappings.filter(
@@ -359,6 +391,7 @@ export class IntegrationsService {
   }
 
   private async executeWithRetry<T>(
+    organizationId: string,
     provider: IntegrationProvider,
     correlationId: string,
     operation: () => Promise<T>,
@@ -369,14 +402,25 @@ export class IntegrationsService {
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
         const result = await operation();
-        this.incrementMetric(provider, 'success');
+        await this.integrationMetricsRepository.increment(
+          organizationId,
+          provider,
+          'success',
+        );
+
         this.logger.log(
           `${provider} call succeeded correlationId=${correlationId} attempt=${attempt}`,
         );
+
         return result;
       } catch (error) {
         lastError = error;
-        this.incrementMetric(provider, 'failure');
+        await this.integrationMetricsRepository.increment(
+          organizationId,
+          provider,
+          'failure',
+        );
+
         this.logger.warn(
           `${provider} call failed correlationId=${correlationId} attempt=${attempt}`,
         );
@@ -386,100 +430,62 @@ export class IntegrationsService {
     throw lastError;
   }
 
-  private findMapping(
+  private async findMapping(
     organizationId: string,
     provider: IntegrationProvider,
     entityType: ExternalMappingEntity['entityType'],
     id: string,
     mode: 'internal' | 'external',
-  ): ExternalMappingEntity | undefined {
-    return this.externalMappings.find((mapping) => {
-      if (
-        mapping.organizationId !== organizationId ||
-        mapping.provider !== provider ||
-        mapping.entityType !== entityType
-      ) {
-        return false;
-      }
+  ): Promise<ExternalMappingEntity | undefined> {
+    if (mode === 'internal') {
+      return this.externalMappingsRepository.findByInternal(
+        organizationId,
+        provider,
+        entityType,
+        id,
+      );
+    }
 
-      return mode === 'internal'
-        ? mapping.internalId === id
-        : mapping.externalId === id;
-    });
+    return this.externalMappingsRepository.findByExternal(
+      organizationId,
+      provider,
+      entityType,
+      id,
+    );
   }
 
-  private registerMapping(input: {
+  private async registerMapping(input: {
     organizationId: string;
     provider: IntegrationProvider;
     entityType: ExternalMappingEntity['entityType'];
     internalId: string;
     externalId: string;
-  }): ExternalMappingEntity {
-    const existing = this.findMapping(
+  }): Promise<ExternalMappingEntity> {
+    const existing = await this.externalMappingsRepository.findByInternal(
       input.organizationId,
       input.provider,
       input.entityType,
       input.internalId,
-      'internal',
     );
 
-    const now = new Date().toISOString();
-
-    if (existing) {
-      existing.externalId = input.externalId;
-      existing.syncedAt = now;
-      return existing;
-    }
-
     const mapping: ExternalMappingEntity = {
-      id: randomUUID(),
+      id: existing?.id ?? randomUUID(),
       organizationId: input.organizationId,
       provider: input.provider,
       entityType: input.entityType,
       internalId: input.internalId,
       externalId: input.externalId,
-      syncedAt: now,
+      syncedAt: new Date().toISOString(),
     };
 
-    this.externalMappings.push(mapping);
+    await this.externalMappingsRepository.upsert(mapping);
     return mapping;
   }
 
-  private getMetricKey(
+  private async getMetrics(
     organizationId: string,
     provider: IntegrationProvider,
-  ): string {
-    return `${organizationId}:${provider}`;
-  }
-
-  private incrementMetric(
-    provider: IntegrationProvider,
-    kind: keyof IntegrationMetrics,
-    organizationId = 'global',
-  ) {
-    const key = this.getMetricKey(organizationId, provider);
-    const current = this.metrics.get(key) ?? { success: 0, failure: 0 };
-    current[kind] += 1;
-    this.metrics.set(key, current);
-  }
-
-  private getMetrics(organizationId: string, provider: IntegrationProvider) {
-    const orgMetrics = this.metrics.get(
-      this.getMetricKey(organizationId, provider),
-    ) ?? {
-      success: 0,
-      failure: 0,
-    };
-    const globalMetrics = this.metrics.get(
-      this.getMetricKey('global', provider),
-    ) ?? {
-      success: 0,
-      failure: 0,
-    };
-
-    return {
-      success: orgMetrics.success + globalMetrics.success,
-      failure: orgMetrics.failure + globalMetrics.failure,
-    };
+  ): Promise<IntegrationMetrics> {
+    return this.integrationMetricsRepository.get(organizationId, provider);
   }
 }

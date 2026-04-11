@@ -26,15 +26,15 @@ describe('CustomersService', () => {
     companiesService = module.get<CompaniesService>(CompaniesService);
   });
 
-  it('should create customer linked to company', () => {
-    const company = companiesService.create(
+  it('should create customer linked to company', async () => {
+    const company = await companiesService.create(
       {
         name: 'Acme',
       },
       actor,
     );
 
-    const customer = customersService.create(
+    const customer = await customersService.create(
       {
         name: 'Alice',
         email: 'alice@acme.com',
@@ -47,8 +47,8 @@ describe('CustomersService', () => {
     expect(customer.companyId).toBe(company.id);
   });
 
-  it('should update customer and detach company with null', () => {
-    const customer = customersService.create(
+  it('should update customer and detach company with null', async () => {
+    const customer = await customersService.create(
       {
         name: 'Bob',
         email: 'bob@acme.com',
@@ -56,7 +56,7 @@ describe('CustomersService', () => {
       actor,
     );
 
-    const updated = customersService.update(
+    const updated = await customersService.update(
       customer.id,
       {
         companyId: null,
