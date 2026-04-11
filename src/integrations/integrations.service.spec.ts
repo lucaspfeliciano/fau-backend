@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { randomUUID } from 'crypto';
+import { createHmac, randomUUID } from 'crypto';
 import type { AuthenticatedUser } from '../common/auth/authenticated-user.interface';
 import { Role } from '../common/auth/role.enum';
 import { DomainEventsService } from '../common/events/domain-events.service';
@@ -7,6 +7,7 @@ import { AiProcessingService } from '../ai-processing/ai-processing.service';
 import { CompaniesService } from '../companies/companies.service';
 import { CustomersService } from '../customers/customers.service';
 import { EngineeringService } from '../engineering/engineering.service';
+import { TaskStatus } from '../engineering/entities/task-status.enum';
 import { RequestSourceType } from '../requests/entities/request-source-type.enum';
 import { IntegrationProvider } from './entities/integration-provider.enum';
 import { ExternalMappingsRepository } from './repositories/external-mappings.repository';
@@ -21,6 +22,13 @@ import { IntegrationsService } from './integrations.service';
 
 describe('IntegrationsService', () => {
   let integrationsService: IntegrationsService;
+  let engineeringService: jest.Mocked<
+    Pick<EngineeringService, 'listTasks' | 'getTaskById' | 'updateTask'>
+  >;
+  let externalMappingsRepository: Pick<
+    ExternalMappingsRepository,
+    'upsert' | 'listByOrganization'
+  >;
 
   const actor: AuthenticatedUser = {
     id: 'user-1',
@@ -41,6 +49,8 @@ describe('IntegrationsService', () => {
       | 'findSlackConfig'
       | 'upsertFirefliesConfig'
       | 'findFirefliesConfig'
+      | 'upsertLinearWebhookSecurityConfig'
+      | 'findLinearWebhookSecurityConfig'
     > = {
       async upsertSlackConfig(organizationId, config) {
         configStore.set(`${organizationId}:slack`, {
@@ -90,11 +100,40 @@ describe('IntegrationsService', () => {
               : new Date().toISOString(),
         };
       },
+      async upsertLinearWebhookSecurityConfig(organizationId, config) {
+        configStore.set(`${organizationId}:linear-webhook`, {
+          ...config,
+          updatedAt: new Date().toISOString(),
+        });
+      },
+      async findLinearWebhookSecurityConfig(organizationId) {
+        const item = configStore.get(`${organizationId}:linear-webhook`);
+        if (
+          !item ||
+          typeof item.signingSecret !== 'string' ||
+          typeof item.toleranceSeconds !== 'number'
+        ) {
+          return undefined;
+        }
+
+        return {
+          signingSecret: item.signingSecret,
+          toleranceSeconds: item.toleranceSeconds,
+          updatedAt:
+            typeof item.updatedAt === 'string'
+              ? item.updatedAt
+              : new Date().toISOString(),
+        };
+      },
     };
 
     const externalMappingsRepositoryMock: Pick<
       ExternalMappingsRepository,
-      'findByInternal' | 'findByExternal' | 'upsert' | 'listByOrganization'
+      | 'findByInternal'
+      | 'findByExternal'
+      | 'upsert'
+      | 'listByOrganization'
+      | 'deleteById'
     > = {
       async findByInternal(organizationId, provider, entityType, internalId) {
         return mappings.get(
@@ -121,7 +160,23 @@ describe('IntegrationsService', () => {
           (mapping: any) => mapping.organizationId === organizationId,
         ) as any;
       },
+      async deleteById(id, organizationId) {
+        const target = [...mappings.values()].find(
+          (mapping: any) =>
+            mapping.id === id && mapping.organizationId === organizationId,
+        ) as any;
+
+        if (!target) {
+          return;
+        }
+
+        mappings.delete(
+          `${target.organizationId}:${target.provider}:${target.entityType}:${target.internalId}`,
+        );
+      },
     };
+
+    externalMappingsRepository = externalMappingsRepositoryMock;
 
     const integrationMetricsRepositoryMock: Pick<
       IntegrationMetricsRepository,
@@ -164,6 +219,7 @@ describe('IntegrationsService', () => {
           totalExtractedItems: 3,
           createdRequests: 1,
           deduplicatedRequests: 1,
+          mergedRequests: 0,
           queuedForReviewItems: 1,
           lowConfidenceItems: 1,
           items: [],
@@ -179,6 +235,50 @@ describe('IntegrationsService', () => {
           };
         },
       };
+
+    const engineeringServiceMock: jest.Mocked<
+      Pick<EngineeringService, 'listTasks' | 'getTaskById' | 'updateTask'>
+    > = {
+      listTasks: jest.fn(async () => ({
+        items: [],
+        page: 1,
+        limit: 1000,
+        total: 0,
+        totalPages: 0,
+      })),
+      getTaskById: jest.fn(async (taskId: string) => ({
+        id: taskId,
+        title: `Task ${taskId}`,
+        description: 'Mock task',
+        featureId: 'feature-1',
+        sprintId: undefined,
+        status: TaskStatus.Todo,
+        estimate: 3,
+        requestSources: [],
+        organizationId: actor.organizationId,
+        createdBy: actor.id,
+        statusHistory: [],
+        createdAt: '2026-04-10T10:00:00.000Z',
+        updatedAt: '2026-04-10T10:00:00.000Z',
+      })),
+      updateTask: jest.fn(async (taskId: string, input) => ({
+        id: taskId,
+        title: `Task ${taskId}`,
+        description: 'Mock task',
+        featureId: 'feature-1',
+        sprintId: undefined,
+        status: input.status ?? TaskStatus.Todo,
+        estimate: 3,
+        requestSources: [],
+        organizationId: actor.organizationId,
+        createdBy: actor.id,
+        statusHistory: [],
+        createdAt: '2026-04-10T10:00:00.000Z',
+        updatedAt: '2026-04-10T10:00:00.000Z',
+      })),
+    };
+
+    engineeringService = engineeringServiceMock;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -205,8 +305,8 @@ describe('IntegrationsService', () => {
         {
           provide: LinearConnector,
           useValue: {
-            upsertIssue: jest.fn(async () => ({
-              externalIssueId: `linear-${randomUUID()}`,
+            upsertIssue: jest.fn(async (task?: { id?: string }) => ({
+              externalIssueId: `linear-${task?.id ?? randomUUID()}`,
             })),
           },
         },
@@ -226,17 +326,7 @@ describe('IntegrationsService', () => {
         },
         {
           provide: EngineeringService,
-          useValue: {
-            listTasks: jest.fn(async () => ({
-              items: [],
-              page: 1,
-              limit: 1000,
-              total: 0,
-              totalPages: 0,
-            })),
-            getTaskById: jest.fn(),
-            updateTask: jest.fn(),
-          },
+          useValue: engineeringServiceMock,
         },
         {
           provide: AiProcessingService,
@@ -348,4 +438,147 @@ describe('IntegrationsService', () => {
         IntegrationProvider.Slack,
         IntegrationProvider.HubSpot,
         IntegrationProvider.Linear,
-        IntegrationProvider.Firefl
+        IntegrationProvider.Fireflies,
+      ].length,
+    ).toBe(4);
+  });
+
+  it('should expose ownership contracts and operational dashboard', async () => {
+    const ownership = integrationsService.getOwnershipContracts(
+      actor.organizationId,
+    );
+
+    expect(ownership.version).toBe('v1');
+    expect(ownership.domains.company.name.owner).toBe('internal');
+
+    const dashboard = await integrationsService.getOperationalDashboard(
+      actor.organizationId,
+    );
+
+    expect(dashboard.sourceOfTruth.version).toBe('v1');
+    expect(dashboard.providers.linear.status).toBeDefined();
+    expect(dashboard.status.mappingsByProvider).toBeDefined();
+  });
+
+  it('should reconcile missing internal references and auto-resolve mappings', async () => {
+    await externalMappingsRepository.upsert({
+      id: 'mapping-orphan-1',
+      organizationId: actor.organizationId,
+      provider: IntegrationProvider.Linear,
+      entityType: 'task',
+      internalId: 'task-missing',
+      externalId: 'linear-task-missing',
+      syncedAt: '2026-04-11T10:00:00.000Z',
+    } as any);
+
+    engineeringService.getTaskById.mockImplementation(
+      async (taskId: string) => {
+        if (taskId === 'task-missing') {
+          throw new Error('Task not found');
+        }
+
+        return {
+          id: taskId,
+          title: `Task ${taskId}`,
+          description: 'Mock task',
+          featureId: 'feature-1',
+          sprintId: undefined,
+          status: TaskStatus.Todo,
+          estimate: 3,
+          requestSources: [],
+          organizationId: actor.organizationId,
+          createdBy: actor.id,
+          statusHistory: [],
+          createdAt: '2026-04-10T10:00:00.000Z',
+          updatedAt: '2026-04-10T10:00:00.000Z',
+        } as any;
+      },
+    );
+
+    const result = await integrationsService.reconcileIntegrations(
+      {
+        provider: IntegrationProvider.Linear,
+        dryRun: false,
+        autoResolveMissingInternal: true,
+      },
+      actor,
+    );
+
+    expect(result.scanned).toBeGreaterThanOrEqual(1);
+    expect(result.resolved).toBeGreaterThanOrEqual(1);
+
+    const remaining = await externalMappingsRepository.listByOrganization(
+      actor.organizationId,
+    );
+    expect(remaining.some((item: any) => item.id === 'mapping-orphan-1')).toBe(
+      false,
+    );
+  });
+
+  it('should validate linear webhook signatures and support selective reprocess', async () => {
+    await integrationsService.configureLinearWebhookSecurity(
+      {
+        signingSecret: 'linear_secret_123456789',
+        toleranceSeconds: 300,
+      },
+      actor,
+    );
+
+    await integrationsService.syncLinear(
+      {
+        taskIds: ['task-1'],
+      },
+      actor,
+    );
+
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const signature = createHmac('sha256', 'linear_secret_123456789')
+      .update(`${timestamp}.linear-task-1.${TaskStatus.Done}`)
+      .digest('hex');
+
+    const webhookResult =
+      await integrationsService.handleLinearWebhookTaskStatus(
+        {
+          externalIssueId: 'linear-task-1',
+          status: TaskStatus.Done,
+          timestamp,
+          signature,
+        },
+        actor,
+      );
+
+    expect(webhookResult.source).toBe(IntegrationProvider.Linear);
+
+    await expect(
+      integrationsService.handleLinearWebhookTaskStatus(
+        {
+          externalIssueId: 'linear-task-1',
+          status: TaskStatus.Done,
+          timestamp,
+          signature: 'invalid-signature',
+        },
+        actor,
+      ),
+    ).rejects.toThrow();
+
+    const reprocessLinear = await integrationsService.reprocessIntegrations(
+      {
+        provider: IntegrationProvider.Linear,
+        taskIds: ['task-1'],
+      },
+      actor,
+    );
+    expect(reprocessLinear.reprocessed).toBeGreaterThanOrEqual(1);
+
+    const reprocessHubSpot = await integrationsService.reprocessIntegrations(
+      {
+        provider: IntegrationProvider.HubSpot,
+      },
+      actor,
+    );
+    expect(reprocessHubSpot.reprocessed).toBe(0);
+    expect(reprocessHubSpot.skippedReason).toContain(
+      'requires explicit payload',
+    );
+  });
+});

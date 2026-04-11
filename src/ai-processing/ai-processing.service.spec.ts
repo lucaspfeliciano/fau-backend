@@ -15,7 +15,11 @@ describe('AiProcessingService', () => {
   let requestsService: jest.Mocked<
     Pick<
       RequestsService,
-      'list' | 'findMostSimilarByText' | 'vote' | 'create'
+      | 'list'
+      | 'findMostSimilarByText'
+      | 'vote'
+      | 'create'
+      | 'createWithIntelligentDeduplication'
     >
   >;
 
@@ -33,13 +37,18 @@ describe('AiProcessingService', () => {
     const requestsServiceMock: jest.Mocked<
       Pick<
         RequestsService,
-        'list' | 'findMostSimilarByText' | 'vote' | 'create'
+        | 'list'
+        | 'findMostSimilarByText'
+        | 'vote'
+        | 'create'
+        | 'createWithIntelligentDeduplication'
       >
     > = {
       list: jest.fn(),
       findMostSimilarByText: jest.fn(),
       vote: jest.fn(),
       create: jest.fn(),
+      createWithIntelligentDeduplication: jest.fn(),
     };
 
     const reviewQueueRepositoryMock: Pick<
@@ -149,6 +158,50 @@ describe('AiProcessingService', () => {
     expect(result.matches[0]?.reason.length).toBeGreaterThan(0);
   });
 
+  it('should register merged items when intelligent dedup returns auto-merge', async () => {
+    requestsService.findMostSimilarByText.mockResolvedValue(undefined);
+    requestsService.createWithIntelligentDeduplication.mockResolvedValue({
+      decision: 'auto_merged',
+      request: {
+        id: 'request-main-1',
+        title: 'Dashboard por equipe',
+        description: 'Consolidated request',
+        status: 'Backlog',
+        votes: 5,
+        tags: ['ui'],
+        createdBy: actor.id,
+        organizationId: actor.organizationId,
+        customerIds: [],
+        companyIds: [],
+        sourceType: RequestSourceType.AiImport,
+        statusHistory: [],
+        createdAt: '2026-04-10T12:00:00.000Z',
+        updatedAt: '2026-04-10T12:00:00.000Z',
+      },
+      mergedRequestId: 'request-dup-1',
+      candidates: [
+        {
+          requestId: 'request-main-1',
+          title: 'Dashboard por equipe',
+          similarityScore: 0.84,
+          actionSuggested: 'auto_merge',
+        },
+      ],
+    });
+
+    const result = await aiProcessingService.importNotes(
+      {
+        sourceType: RequestSourceType.MeetingNotes,
+        text: 'Cliente precisa dashboard por equipe com filtros e relatou o mesmo pedido em reuniao anterior.',
+      },
+      actor,
+    );
+
+    expect(result.mergedRequests).toBe(1);
+    expect(result.items[0]?.action).toBe('merged');
+    expect(result.items[0]?.deduplicationDecision).toBe('auto_merged');
+  });
+
   it('should queue low-confidence items and approve/reject decisions', async () => {
     requestsService.findMostSimilarByText.mockResolvedValue(undefined);
     requestsService.create.mockImplementation(async (input, currentActor) => ({
@@ -255,10 +308,7 @@ describe('AiProcessingService', () => {
 
     const batch = await aiProcessingService.approveReviewQueueBatch(
       {
-        itemIds: [
-          first.items[0]!.queueItemId!,
-          second.items[0]!.queueItemId!,
-        ],
+        itemIds: [first.items[0]!.queueItemId!, second.items[0]!.queueItemId!],
       },
       actor,
     );

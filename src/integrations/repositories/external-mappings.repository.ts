@@ -64,4 +64,8 @@ export class ExternalMappingsRepository {
       .lean<ExternalMappingEntity[]>()
       .exec();
   }
+
+  async deleteById(id: string, organizationId: string): Promise<void> {
+    await this.externalMappingModel.deleteOne({ id, organizationId }).exec();
+  }
 }

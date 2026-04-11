@@ -24,10 +24,20 @@ import { AiReviewQueueRepository } from './repositories/ai-review-queue.reposito
 
 interface ProcessedItemResult {
   item: AiExtractedItem;
-  action: 'created' | 'deduplicated' | 'queued';
+  action: 'created' | 'deduplicated' | 'merged' | 'queued';
   similarity?: number;
   request?: RequestEntity;
   queueItemId?: string;
+  deduplicationDecision?:
+    | 'created'
+    | 'suggested'
+    | 'auto_linked'
+    | 'auto_merged';
+  similarCandidates?: {
+    requestId: string;
+    similarityScore: number;
+    actionSuggested: 'suggest_review' | 'auto_link' | 'auto_merge';
+  }[];
 }
 
 export interface ImportNotesResult {
@@ -37,6 +47,7 @@ export interface ImportNotesResult {
   totalExtractedItems: number;
   createdRequests: number;
   deduplicatedRequests: number;
+  mergedRequests: number;
   queuedForReviewItems: number;
   lowConfidenceItems: number;
   items: ProcessedItemResult[];
@@ -71,6 +82,7 @@ interface AiQualityMetrics {
   totalExtractedItems: number;
   createdRequests: number;
   deduplicatedRequests: number;
+  mergedRequests: number;
   lowConfidenceItems: number;
   confidenceSum: number;
 }
@@ -129,7 +141,7 @@ export class AiProcessingService {
       const similar = await this.requestsService.findMostSimilarByText(
         actor.organizationId,
         extractedItem.normalizedText,
-        0.32,
+        0.35,
       );
 
       if (extractedItem.requiresHumanReview) {
@@ -145,36 +157,6 @@ export class AiProcessingService {
           action: 'queued',
           similarity: similar ? Number(similar.score.toFixed(4)) : undefined,
           queueItemId: queued.id,
-        });
-
-        continue;
-      }
-
-      if (similar) {
-        const voted = await this.requestsService.vote(
-          similar.request.id,
-          actor,
-        );
-
-        this.domainEventsService.publish({
-          name: 'ai.request_deduplicated',
-          occurredAt: new Date().toISOString(),
-          actorId: actor.id,
-          organizationId: actor.organizationId,
-          payload: {
-            requestId: voted.id,
-            similarity: Number(similar.score.toFixed(4)),
-            sourceType: input.sourceType,
-            noteExternalId: input.noteExternalId,
-            confidence: extractedItem.confidence,
-          },
-        });
-
-        results.push({
-          item: extractedItem,
-          action: 'deduplicated',
-          similarity: Number(similar.score.toFixed(4)),
-          request: voted,
         });
 
         continue;
@@ -199,7 +181,68 @@ export class AiProcessingService {
         ],
       };
 
-      const created = await this.requestsService.create(createPayload, actor);
+      const intelligentResult =
+        await this.requestsService.createWithIntelligentDeduplication(
+          createPayload,
+          actor,
+        );
+
+      const topCandidate = intelligentResult.candidates[0];
+
+      if (intelligentResult.decision === 'auto_linked') {
+        this.domainEventsService.publish({
+          name: 'ai.request_deduplicated',
+          occurredAt: new Date().toISOString(),
+          actorId: actor.id,
+          organizationId: actor.organizationId,
+          payload: {
+            requestId: intelligentResult.request.id,
+            similarity: topCandidate?.similarityScore,
+            sourceType: input.sourceType,
+            noteExternalId: input.noteExternalId,
+            confidence: extractedItem.confidence,
+          },
+        });
+
+        results.push({
+          item: extractedItem,
+          action: 'deduplicated',
+          similarity: topCandidate?.similarityScore,
+          request: intelligentResult.request,
+          deduplicationDecision: intelligentResult.decision,
+          similarCandidates: intelligentResult.candidates,
+        });
+
+        continue;
+      }
+
+      if (intelligentResult.decision === 'auto_merged') {
+        this.domainEventsService.publish({
+          name: 'ai.request_merged',
+          occurredAt: new Date().toISOString(),
+          actorId: actor.id,
+          organizationId: actor.organizationId,
+          payload: {
+            requestId: intelligentResult.request.id,
+            mergedRequestId: intelligentResult.mergedRequestId,
+            similarity: topCandidate?.similarityScore,
+            sourceType: input.sourceType,
+            noteExternalId: input.noteExternalId,
+            confidence: extractedItem.confidence,
+          },
+        });
+
+        results.push({
+          item: extractedItem,
+          action: 'merged',
+          similarity: topCandidate?.similarityScore,
+          request: intelligentResult.request,
+          deduplicationDecision: intelligentResult.decision,
+          similarCandidates: intelligentResult.candidates,
+        });
+
+        continue;
+      }
 
       this.domainEventsService.publish({
         name: 'ai.request_created',
@@ -207,18 +250,21 @@ export class AiProcessingService {
         actorId: actor.id,
         organizationId: actor.organizationId,
         payload: {
-          requestId: created.id,
+          requestId: intelligentResult.request.id,
           sourceType: input.sourceType,
           noteExternalId: input.noteExternalId,
           confidence: extractedItem.confidence,
           requiresHumanReview: extractedItem.requiresHumanReview,
+          deduplicationDecision: intelligentResult.decision,
         },
       });
 
       results.push({
         item: extractedItem,
         action: 'created',
-        request: created,
+        request: intelligentResult.request,
+        deduplicationDecision: intelligentResult.decision,
+        similarCandidates: intelligentResult.candidates,
       });
     }
 
@@ -232,6 +278,7 @@ export class AiProcessingService {
       deduplicatedRequests: results.filter(
         (item) => item.action === 'deduplicated',
       ).length,
+      mergedRequests: results.filter((item) => item.action === 'merged').length,
       queuedForReviewItems: results.filter((item) => item.action === 'queued')
         .length,
       lowConfidenceItems: results.filter((item) => item.action === 'queued')
@@ -250,12 +297,13 @@ export class AiProcessingService {
         totalExtractedItems: response.totalExtractedItems,
         createdRequests: response.createdRequests,
         deduplicatedRequests: response.deduplicatedRequests,
+        mergedRequests: response.mergedRequests,
         queuedForReviewItems: response.queuedForReviewItems,
       },
     });
 
     this.logger.log(
-      `AI import completed for org=${actor.organizationId} created=${response.createdRequests} deduplicated=${response.deduplicatedRequests} queued=${response.queuedForReviewItems}`,
+      `AI import completed for org=${actor.organizationId} created=${response.createdRequests} deduplicated=${response.deduplicatedRequests} merged=${response.mergedRequests} queued=${response.queuedForReviewItems}`,
     );
 
     this.updateQualityMetrics(actor.organizationId, response);
@@ -488,6 +536,7 @@ export class AiProcessingService {
       totalExtractedItems: 0,
       createdRequests: 0,
       deduplicatedRequests: 0,
+      mergedRequests: 0,
       lowConfidenceItems: 0,
       confidenceSum: 0,
     };
@@ -503,7 +552,8 @@ export class AiProcessingService {
         ? 0
         : Number(
             (
-              metrics.deduplicatedRequests / metrics.totalExtractedItems
+              (metrics.deduplicatedRequests + metrics.mergedRequests) /
+              metrics.totalExtractedItems
             ).toFixed(4),
           );
 
@@ -512,6 +562,7 @@ export class AiProcessingService {
       totalExtractedItems: metrics.totalExtractedItems,
       createdRequests: metrics.createdRequests,
       deduplicatedRequests: metrics.deduplicatedRequests,
+      mergedRequests: metrics.mergedRequests,
       lowConfidenceItems: metrics.lowConfidenceItems,
       averageConfidence,
       deduplicationRate,
@@ -667,6 +718,7 @@ export class AiProcessingService {
       totalExtractedItems: 0,
       createdRequests: 0,
       deduplicatedRequests: 0,
+      mergedRequests: 0,
       lowConfidenceItems: 0,
       confidenceSum: 0,
     };
@@ -675,6 +727,7 @@ export class AiProcessingService {
     current.totalExtractedItems += result.totalExtractedItems;
     current.createdRequests += result.createdRequests;
     current.deduplicatedRequests += result.deduplicatedRequests;
+    current.mergedRequests += result.mergedRequests;
     current.lowConfidenceItems += result.lowConfidenceItems;
     current.confidenceSum += result.items.reduce(
       (acc, item) => acc + item.item.confidence,
@@ -781,4 +834,7 @@ export class AiProcessingService {
       .toLowerCase()
       .replace(/[^a-z0-9\s]/gi, ' ')
       .split(/\s+/)
-      .map((token) => token.tri
+      .map((token) => token.trim())
+      .filter((token) => token.length >= 3);
+  }
+}

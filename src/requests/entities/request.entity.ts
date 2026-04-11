@@ -8,6 +8,37 @@ export interface RequestStatusHistoryEntry {
   changedAt: string;
 }
 
+export type RequestDeduplicationDecision =
+  | 'created'
+  | 'suggested'
+  | 'auto_linked'
+  | 'auto_merged'
+  | 'manually_merged'
+  | 'merge_reverted';
+
+export interface RequestDeduplicationEvidenceEntry {
+  recordedAt: string;
+  recordedBy?: string;
+  sourceType: RequestSourceType;
+  sourceRef?: string;
+  summary?: string;
+  similarityScore?: number;
+  linkedRequestId?: string;
+  mergedRequestId?: string;
+  decision: RequestDeduplicationDecision;
+}
+
+export interface RequestMergeHistoryEntry {
+  mergeId: string;
+  occurredAt: string;
+  actorId?: string;
+  mode: 'auto' | 'manual' | 'revert';
+  sourceRequestId: string;
+  targetRequestId: string;
+  similarityScore?: number;
+  reason?: string;
+}
+
 export interface RequestEntity {
   id: string;
   title: string;
@@ -23,6 +54,10 @@ export interface RequestEntity {
   sourceType: RequestSourceType;
   sourceRef?: string;
   ingestedAt?: string;
+  mergedIntoRequestId?: string;
+  mergedRequestIds?: string[];
+  deduplicationEvidence?: RequestDeduplicationEvidenceEntry[];
+  mergeHistory?: RequestMergeHistoryEntry[];
   statusHistory: RequestStatusHistoryEntry[];
   createdAt: string;
   updatedAt: string;

@@ -17,15 +17,33 @@ export class MongoRequestsRepository implements RequestsRepository {
   }
 
   async update(request: RequestEntity): Promise<void> {
+    const setPayload: Record<string, unknown> = {};
+    const unsetPayload: Record<string, ''> = {};
+
+    for (const [key, value] of Object.entries(request)) {
+      if (value === undefined) {
+        unsetPayload[key] = '';
+        continue;
+      }
+
+      setPayload[key] = value;
+    }
+
+    const updateOperation: Record<string, unknown> = {
+      $set: setPayload,
+    };
+
+    if (Object.keys(unsetPayload).length > 0) {
+      updateOperation.$unset = unsetPayload;
+    }
+
     await this.requestModel
       .updateOne(
         {
           id: request.id,
           organizationId: request.organizationId,
         },
-        {
-          $set: request,
-        },
+        updateOperation,
       )
       .exec();
   }

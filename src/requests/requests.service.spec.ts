@@ -7,6 +7,7 @@ import { CustomersService } from '../customers/customers.service';
 import type { CustomerEntity } from '../customers/entities/customer.entity';
 import { Role } from '../common/auth/role.enum';
 import { RequestsService } from './requests.service';
+import { RequestSourceType } from './entities/request-source-type.enum';
 import { RequestStatus } from './entities/request-status.enum';
 import type { AuthenticatedUser } from '../common/auth/authenticated-user.interface';
 import { TestingRequestsRepository } from './repositories/testing-requests.repository';
@@ -317,5 +318,107 @@ describe('RequestsService', () => {
     expect(comments[0]?.comment).toBe(
       'This was requested by customer success.',
     );
+  });
+
+  it('should auto-link similar requests on intelligent creation', async () => {
+    const existing = await requestsService.create(
+      {
+        title: 'Export invoice report as PDF',
+        description:
+          'Finance team needs invoice report export in PDF format with filters.',
+      },
+      actor,
+    );
+
+    const result = await requestsService.createWithIntelligentDeduplication(
+      {
+        title: 'Invoice PDF export for finance',
+        description:
+          'Need to export invoice report in PDF format for finance team filters.',
+      },
+      actor,
+    );
+
+    expect(result.decision).toBe('auto_linked');
+    expect(result.request.id).toBe(existing.id);
+    expect(result.request.votes).toBe(2);
+
+    const metrics = requestsService.getDeduplicationMetrics(
+      actor.organizationId,
+    );
+    expect(metrics.autoLinked).toBe(1);
+  });
+
+  it('should auto-merge high confidence duplicate and preserve references', async () => {
+    const target = await requestsService.create(
+      {
+        title: 'Dashboard por equipe com filtro',
+        description:
+          'Cliente pediu dashboard por equipe com filtro de squad e status.',
+      },
+      actor,
+    );
+
+    const result = await requestsService.createWithIntelligentDeduplication(
+      {
+        title: 'Dashboard por equipe com filtro',
+        description:
+          'Cliente pediu dashboard por equipe com filtro de squad e status.',
+        sourceType: RequestSourceType.MeetingNotes,
+      },
+      actor,
+    );
+
+    expect(result.decision).toBe('auto_merged');
+    expect(result.request.id).toBe(target.id);
+    expect(result.mergedRequestId).toBeDefined();
+    expect(result.request.mergedRequestIds).toContain(result.mergedRequestId);
+    expect(result.request.votes).toBeGreaterThan(1);
+  });
+
+  it('should allow manual merge and merge reversal with metrics update', async () => {
+    const target = await requestsService.create(
+      {
+        title: 'Relatorio financeiro consolidado',
+        description: 'Consolidar relatorios financeiros por trimestre.',
+      },
+      actor,
+    );
+
+    const source = await requestsService.create(
+      {
+        title: 'Relatorio financeiro trimestral',
+        description: 'Precisamos de relatorio financeiro por trimestre.',
+      },
+      actor,
+    );
+
+    const merged = await requestsService.manualMerge(
+      source.id,
+      target.id,
+      actor,
+      'Duplicidade confirmada pelo time de produto.',
+    );
+
+    expect(merged.mergedRequestIds).toContain(source.id);
+
+    await requestsService.revertMerge(
+      source.id,
+      target.id,
+      actor,
+      'Falso positivo apos revisao.',
+    );
+
+    const restoredSource = await requestsService.findOneById(
+      source.id,
+      actor.organizationId,
+    );
+    expect(restoredSource.deletedAt).toBeUndefined();
+
+    const metrics = requestsService.getDeduplicationMetrics(
+      actor.organizationId,
+    );
+    expect(metrics.manualMerged).toBe(1);
+    expect(metrics.reversals).toBe(1);
   });
 });

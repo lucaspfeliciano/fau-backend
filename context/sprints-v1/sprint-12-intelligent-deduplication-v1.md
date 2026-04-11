@@ -4,6 +4,8 @@
 
 Evoluir deduplicacao para similaridade semantica com suporte a sugestao, auto-merge e preservacao de contexto.
 
+Status backend: concluido.
+
 ## Resultado Esperado
 
 No final da sprint, o produto entrega:
@@ -46,12 +48,12 @@ No final da sprint, o produto entrega:
 
 ## Checklist de Acompanhamento
 
-- [ ] Definir algoritmo inicial de similaridade semantica.
-- [ ] Implementar sugestao de duplicidade em tempo real.
-- [ ] Implementar auto-link e auto-merge por threshold.
-- [ ] Preservar contexto e historico em merges.
-- [ ] Expor metricas operacionais de deduplicacao.
-- [ ] Validar com cenarios de alta ambiguidade.
+- [x] Definir algoritmo inicial de similaridade semantica.
+- [x] Implementar sugestao de duplicidade em tempo real.
+- [x] Implementar auto-link e auto-merge por threshold.
+- [x] Preservar contexto e historico em merges.
+- [x] Expor metricas operacionais de deduplicacao.
+- [x] Validar com cenarios de alta ambiguidade.
 
 ## Critérios de Aceite
 

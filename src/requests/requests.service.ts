@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Inject,
   Injectable,
   NotFoundException,
@@ -16,6 +17,11 @@ import type { FindSimilarRequestsInput } from './dto/find-similar-requests.schem
 import type { QueryRequestsInput } from './dto/query-requests.schema';
 import type { UpdateRequestInput } from './dto/update-request.schema';
 import type { RequestCommentEntity } from './entities/request-comment.entity';
+import type {
+  RequestDeduplicationDecision,
+  RequestDeduplicationEvidenceEntry,
+  RequestMergeHistoryEntry,
+} from './entities/request.entity';
 import { RequestEntity } from './entities/request.entity';
 import { RequestSourceType } from './entities/request-source-type.enum';
 import { RequestStatus } from './entities/request-status.enum';
@@ -53,9 +59,66 @@ export interface SimilarRequestItem {
   actionSuggested: 'link_existing' | 'review';
 }
 
+export interface DeduplicationCandidate {
+  requestId: string;
+  title: string;
+  similarityScore: number;
+  actionSuggested: 'suggest_review' | 'auto_link' | 'auto_merge';
+}
+
+export interface IntelligentCreationResult {
+  decision: 'created' | 'suggested' | 'auto_linked' | 'auto_merged';
+  request: RequestEntity;
+  candidates: DeduplicationCandidate[];
+  mergedRequestId?: string;
+}
+
+export interface DeduplicationMetricsResult {
+  totalEvaluations: number;
+  created: number;
+  suggested: number;
+  autoLinked: number;
+  autoMerged: number;
+  manualMerged: number;
+  reversals: number;
+  mergeRate: number;
+  reversalRate: number;
+  precisionApprox: number;
+}
+
+interface DeduplicationPolicy {
+  suggestionThreshold: number;
+  autoLinkThreshold: number;
+  autoMergeThreshold: number;
+  ambiguityDelta: number;
+  maxCandidates: number;
+}
+
+interface DeduplicationMetrics {
+  totalEvaluations: number;
+  created: number;
+  suggested: number;
+  autoLinked: number;
+  autoMerged: number;
+  manualMerged: number;
+  reversals: number;
+}
+
+const DEDUPLICATION_POLICY: DeduplicationPolicy = {
+  suggestionThreshold: 0.35,
+  autoLinkThreshold: 0.55,
+  autoMergeThreshold: 0.78,
+  ambiguityDelta: 0.06,
+  maxCandidates: 8,
+};
+
 @Injectable()
 export class RequestsService {
   private readonly inMemoryComments: RequestCommentEntity[] = [];
+  private readonly deduplicationMetricsByOrganization = new Map<
+    string,
+    DeduplicationMetrics
+  >();
 
   constructor(
     @Inject(REQUESTS_REPOSITORY)
@@ -71,6 +134,144 @@ export class RequestsService {
   ) {}
 
   async create(
+    input: CreateRequestInput,
+    actor: AuthenticatedUser,
+  ): Promise<RequestEntity> {
+    return this.createRaw(input, actor);
+  }
+
+  async createWithIntelligentDeduplication(
+    input: CreateRequestInput,
+    actor: AuthenticatedUser,
+  ): Promise<IntelligentCreationResult> {
+    const normalizedText = `${input.title} ${input.description}`
+      .trim()
+      .toLowerCase();
+
+    const candidates = await this.collectDeduplicationCandidates(
+      actor.organizationId,
+      normalizedText,
+      input.boardId,
+    );
+
+    this.bumpDeduplicationMetric(actor.organizationId, 'totalEvaluations');
+
+    const topCandidate = candidates[0];
+    const secondCandidate = candidates[1];
+    const isAmbiguous =
+      Boolean(topCandidate && secondCandidate) &&
+      topCandidate!.score - secondCandidate!.score <
+        DEDUPLICATION_POLICY.ambiguityDelta;
+
+    if (
+      topCandidate &&
+      !isAmbiguous &&
+      topCandidate.score >= DEDUPLICATION_POLICY.autoMergeThreshold
+    ) {
+      const created = await this.createRaw(input, actor);
+      const merged = await this.mergeRequests(
+        created.id,
+        topCandidate.request.id,
+        actor,
+        'auto',
+        topCandidate.score,
+        'auto-merge threshold reached',
+      );
+
+      this.bumpDeduplicationMetric(actor.organizationId, 'autoMerged');
+      await this.publishDeduplicationDecisionEvent(actor, {
+        decision: 'auto_merged',
+        sourceRequestId: created.id,
+        targetRequestId: merged.id,
+        similarityScore: topCandidate.score,
+        candidatesCount: candidates.length,
+      });
+
+      return {
+        decision: 'auto_merged',
+        request: merged,
+        mergedRequestId: created.id,
+        candidates: this.toDeduplicationCandidates(candidates),
+      };
+    }
+
+    if (
+      topCandidate &&
+      !isAmbiguous &&
+      topCandidate.score >= DEDUPLICATION_POLICY.autoLinkThreshold
+    ) {
+      const linked = await this.applyAutoLink(
+        topCandidate.request.id,
+        input,
+        actor,
+        topCandidate.score,
+      );
+
+      this.bumpDeduplicationMetric(actor.organizationId, 'autoLinked');
+      await this.publishDeduplicationDecisionEvent(actor, {
+        decision: 'auto_linked',
+        targetRequestId: linked.id,
+        similarityScore: topCandidate.score,
+        candidatesCount: candidates.length,
+      });
+
+      return {
+        decision: 'auto_linked',
+        request: linked,
+        candidates: this.toDeduplicationCandidates(candidates),
+      };
+    }
+
+    const created = await this.createRaw(input, actor);
+
+    if (
+      topCandidate &&
+      topCandidate.score >= DEDUPLICATION_POLICY.suggestionThreshold
+    ) {
+      this.appendDeduplicationEvidence(created, {
+        recordedAt: new Date().toISOString(),
+        recordedBy: actor.id,
+        sourceType: created.sourceType,
+        sourceRef: created.sourceRef,
+        summary: 'Potential duplicate suggested for manual review.',
+        similarityScore: Number(topCandidate.score.toFixed(4)),
+        linkedRequestId: topCandidate.request.id,
+        decision: 'suggested',
+      });
+      created.updatedAt = new Date().toISOString();
+      await this.requestsRepository.update(created);
+
+      this.bumpDeduplicationMetric(actor.organizationId, 'suggested');
+      await this.publishDeduplicationDecisionEvent(actor, {
+        decision: 'suggested',
+        sourceRequestId: created.id,
+        targetRequestId: topCandidate.request.id,
+        similarityScore: topCandidate.score,
+        candidatesCount: candidates.length,
+      });
+
+      return {
+        decision: 'suggested',
+        request: created,
+        candidates: this.toDeduplicationCandidates(candidates),
+      };
+    }
+
+    this.bumpDeduplicationMetric(actor.organizationId, 'created');
+    await this.publishDeduplicationDecisionEvent(actor, {
+      decision: 'created',
+      sourceRequestId: created.id,
+      candidatesCount: candidates.length,
+    });
+
+    return {
+      decision: 'created',
+      request: created,
+      candidates: this.toDeduplicationCandidates(candidates),
+    };
+  }
+
+  private async createRaw(
     input: CreateRequestInput,
     actor: AuthenticatedUser,
   ): Promise<RequestEntity> {
@@ -93,6 +294,9 @@ export class RequestsService {
       sourceType,
       sourceRef: input.sourceRef,
       ingestedAt: sourceType === RequestSourceType.Manual ? undefined : now,
+      mergedRequestIds: [],
+      deduplicationEvidence: [],
+      mergeHistory: [],
       statusHistory: [
         {
           from: null,
@@ -327,6 +531,176 @@ export class RequestsService {
         actionSuggested: item.score >= 0.55 ? 'link_existing' : 'review',
       })),
     };
+  }
+
+  async manualMerge(
+    sourceRequestId: string,
+    targetRequestId: string,
+    actor: AuthenticatedUser,
+    reason?: string,
+  ): Promise<RequestEntity> {
+    const merged = await this.mergeRequests(
+      sourceRequestId,
+      targetRequestId,
+      actor,
+      'manual',
+      undefined,
+      reason,
+    );
+
+    this.bumpDeduplicationMetric(actor.organizationId, 'manualMerged');
+
+    return merged;
+  }
+
+  async revertMerge(
+    sourceRequestId: string,
+    targetRequestId: string,
+    actor: AuthenticatedUser,
+    reason?: string,
+  ): Promise<{ source: RequestEntity; target: RequestEntity }> {
+    if (sourceRequestId === targetRequestId) {
+      throw new BadRequestException('Source and target requests must differ.');
+    }
+
+    const source = await this.findById(
+      sourceRequestId,
+      actor.organizationId,
+      true,
+    );
+    const target = await this.findById(
+      targetRequestId,
+      actor.organizationId,
+      false,
+    );
+
+    if (source.mergedIntoRequestId !== target.id || !source.deletedAt) {
+      throw new BadRequestException('Merge relation not found for reversal.');
+    }
+
+    const now = new Date().toISOString();
+    const mergeId = randomUUID();
+
+    target.mergedRequestIds = (target.mergedRequestIds ?? []).filter(
+      (id) => id !== source.id,
+    );
+    target.votes = Math.max(1, target.votes - Math.max(1, source.votes));
+    target.updatedAt = now;
+
+    this.appendMergeHistory(target, {
+      mergeId,
+      occurredAt: now,
+      actorId: actor.id,
+      mode: 'revert',
+      sourceRequestId: source.id,
+      targetRequestId: target.id,
+      reason,
+    });
+
+    this.appendDeduplicationEvidence(target, {
+      recordedAt: now,
+      recordedBy: actor.id,
+      sourceType: source.sourceType,
+      sourceRef: source.sourceRef,
+      summary: reason ?? 'Manual merge reversal applied.',
+      linkedRequestId: target.id,
+      mergedRequestId: source.id,
+      decision: 'merge_reverted',
+    });
+
+    source.mergedIntoRequestId = undefined;
+    source.deletedAt = undefined;
+    source.updatedAt = now;
+    this.appendMergeHistory(source, {
+      mergeId,
+      occurredAt: now,
+      actorId: actor.id,
+      mode: 'revert',
+      sourceRequestId: source.id,
+      targetRequestId: target.id,
+      reason,
+    });
+
+    await this.requestsRepository.update(target);
+    await this.requestsRepository.update(source);
+
+    this.bumpDeduplicationMetric(actor.organizationId, 'reversals');
+
+    this.domainEventsService.publish({
+      name: 'request.merge_reverted',
+      occurredAt: now,
+      actorId: actor.id,
+      organizationId: actor.organizationId,
+      payload: {
+        sourceRequestId: source.id,
+        targetRequestId: target.id,
+        reason,
+      },
+    });
+
+    return {
+      source,
+      target,
+    };
+  }
+
+  getDeduplicationMetrics(organizationId: string): DeduplicationMetricsResult {
+    const metrics = this.deduplicationMetricsByOrganization.get(
+      organizationId,
+    ) ?? {
+      totalEvaluations: 0,
+      created: 0,
+      suggested: 0,
+      autoLinked: 0,
+      autoMerged: 0,
+      manualMerged: 0,
+      reversals: 0,
+    };
+
+    const totalMerges = metrics.autoMerged + metrics.manualMerged;
+    const autoDecisions =
+      metrics.autoLinked + metrics.autoMerged + metrics.manualMerged;
+
+    const mergeRate =
+      metrics.totalEvaluations === 0
+        ? 0
+        : Number((totalMerges / metrics.totalEvaluations).toFixed(4));
+    const reversalRate =
+      autoDecisions === 0
+        ? 0
+        : Number((metrics.reversals / autoDecisions).toFixed(4));
+    const precisionApprox =
+      autoDecisions === 0
+        ? 0
+        : Number(
+            ((autoDecisions - metrics.reversals) / autoDecisions).toFixed(4),
+          );
+
+    return {
+      ...metrics,
+      mergeRate,
+      reversalRate,
+      precisionApprox,
+    };
+  }
+
+  listDeduplicationAuditTrail(
+    organizationId: string,
+    limit = 50,
+  ): DomainEvent[] {
+    return this.domainEventsService
+      .list()
+      .filter((event) => event.organizationId === organizationId)
+      .filter((event) =>
+        [
+          'request.deduplication_decision_made',
+          'request.auto_link_applied',
+          'request.merged',
+          'request.merge_reverted',
+        ].includes(event.name),
+      )
+      .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
+      .slice(0, limit);
   }
 
   async addComment(
@@ -639,7 +1013,11 @@ export class RequestsService {
         }
 
         const payload = event.payload as Record<string, unknown>;
-        return payload.requestId === requestId;
+        return (
+          payload.requestId === requestId ||
+          payload.sourceRequestId === requestId ||
+          payload.targetRequestId === requestId
+        );
       })
       .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
 
@@ -647,6 +1025,281 @@ export class RequestsService {
       request,
       updates,
     };
+  }
+
+  private async collectDeduplicationCandidates(
+    organizationId: string,
+    normalizedText: string,
+    boardId?: string,
+  ): Promise<SimilarRequestMatch[]> {
+    if (!normalizedText) {
+      return [];
+    }
+
+    return (await this.requestsRepository.listByOrganization(organizationId))
+      .filter((request) => !request.deletedAt)
+      .filter((request) => {
+        if (!boardId) {
+          return true;
+        }
+
+        return request.boardId === boardId;
+      })
+      .map((request) => {
+        const referenceText = `${request.title} ${request.description}`;
+        const score = this.calculateTextSimilarity(
+          normalizedText,
+          referenceText,
+        );
+
+        return {
+          request,
+          score,
+        };
+      })
+      .filter((item) => item.score >= DEDUPLICATION_POLICY.suggestionThreshold)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, DEDUPLICATION_POLICY.maxCandidates);
+  }
+
+  private toDeduplicationCandidates(
+    matches: SimilarRequestMatch[],
+  ): DeduplicationCandidate[] {
+    return matches.map((item) => ({
+      requestId: item.request.id,
+      title: item.request.title,
+      similarityScore: Number(item.score.toFixed(4)),
+      actionSuggested:
+        item.score >= DEDUPLICATION_POLICY.autoMergeThreshold
+          ? 'auto_merge'
+          : item.score >= DEDUPLICATION_POLICY.autoLinkThreshold
+            ? 'auto_link'
+            : 'suggest_review',
+    }));
+  }
+
+  private async applyAutoLink(
+    requestId: string,
+    input: CreateRequestInput,
+    actor: AuthenticatedUser,
+    score: number,
+  ): Promise<RequestEntity> {
+    const linked = await this.vote(requestId, actor);
+
+    linked.tags = this.uniqueValues([
+      ...(linked.tags ?? []),
+      ...(input.tags ?? []),
+    ]);
+    linked.customerIds = this.uniqueValues([
+      ...(linked.customerIds ?? []),
+      ...(input.customerIds ?? []),
+    ]);
+    linked.companyIds = this.uniqueValues([
+      ...(linked.companyIds ?? []),
+      ...(input.companyIds ?? []),
+    ]);
+
+    this.appendDeduplicationEvidence(linked, {
+      recordedAt: new Date().toISOString(),
+      recordedBy: actor.id,
+      sourceType: input.sourceType ?? RequestSourceType.Manual,
+      sourceRef: input.sourceRef,
+      summary: `Auto-link applied from incoming request signal: ${input.title}`,
+      similarityScore: Number(score.toFixed(4)),
+      linkedRequestId: linked.id,
+      decision: 'auto_linked',
+    });
+
+    linked.updatedAt = new Date().toISOString();
+    await this.requestsRepository.update(linked);
+
+    this.domainEventsService.publish({
+      name: 'request.auto_link_applied',
+      occurredAt: linked.updatedAt,
+      actorId: actor.id,
+      organizationId: actor.organizationId,
+      payload: {
+        requestId: linked.id,
+        similarityScore: Number(score.toFixed(4)),
+      },
+    });
+
+    return linked;
+  }
+
+  private async mergeRequests(
+    sourceRequestId: string,
+    targetRequestId: string,
+    actor: AuthenticatedUser,
+    mode: 'auto' | 'manual',
+    similarityScore?: number,
+    reason?: string,
+  ): Promise<RequestEntity> {
+    if (sourceRequestId === targetRequestId) {
+      throw new BadRequestException('Source and target requests must differ.');
+    }
+
+    const source = await this.findById(
+      sourceRequestId,
+      actor.organizationId,
+      false,
+    );
+    const target = await this.findById(
+      targetRequestId,
+      actor.organizationId,
+      false,
+    );
+
+    if (source.mergedIntoRequestId) {
+      throw new BadRequestException('Source request is already merged.');
+    }
+
+    const now = new Date().toISOString();
+    const mergeId = randomUUID();
+
+    target.votes += Math.max(1, source.votes);
+    target.tags = this.uniqueValues([
+      ...(target.tags ?? []),
+      ...(source.tags ?? []),
+    ]);
+    target.customerIds = this.uniqueValues([
+      ...(target.customerIds ?? []),
+      ...(source.customerIds ?? []),
+    ]);
+    target.companyIds = this.uniqueValues([
+      ...(target.companyIds ?? []),
+      ...(source.companyIds ?? []),
+    ]);
+    target.mergedRequestIds = this.uniqueValues([
+      ...(target.mergedRequestIds ?? []),
+      ...(source.mergedRequestIds ?? []),
+      source.id,
+    ]);
+
+    this.appendDeduplicationEvidence(target, {
+      recordedAt: now,
+      recordedBy: actor.id,
+      sourceType: source.sourceType,
+      sourceRef: source.sourceRef,
+      summary: reason ?? 'Request merged into deduplicated target.',
+      similarityScore: similarityScore
+        ? Number(similarityScore.toFixed(4))
+        : undefined,
+      linkedRequestId: target.id,
+      mergedRequestId: source.id,
+      decision: mode === 'auto' ? 'auto_merged' : 'manually_merged',
+    });
+
+    this.appendMergeHistory(target, {
+      mergeId,
+      occurredAt: now,
+      actorId: actor.id,
+      mode,
+      sourceRequestId: source.id,
+      targetRequestId: target.id,
+      similarityScore,
+      reason,
+    });
+
+    source.mergedIntoRequestId = target.id;
+    source.deletedAt = now;
+    this.appendMergeHistory(source, {
+      mergeId,
+      occurredAt: now,
+      actorId: actor.id,
+      mode,
+      sourceRequestId: source.id,
+      targetRequestId: target.id,
+      similarityScore,
+      reason,
+    });
+
+    source.updatedAt = now;
+    target.updatedAt = now;
+
+    await this.requestsRepository.update(target);
+    await this.requestsRepository.update(source);
+
+    this.domainEventsService.publish({
+      name: 'request.merged',
+      occurredAt: now,
+      actorId: actor.id,
+      organizationId: actor.organizationId,
+      payload: {
+        mergeId,
+        mode,
+        sourceRequestId: source.id,
+        targetRequestId: target.id,
+        similarityScore:
+          similarityScore === undefined
+            ? undefined
+            : Number(similarityScore.toFixed(4)),
+        reason,
+      },
+    });
+
+    return target;
+  }
+
+  private appendDeduplicationEvidence(
+    request: RequestEntity,
+    evidence: RequestDeduplicationEvidenceEntry,
+  ): void {
+    if (!request.deduplicationEvidence) {
+      request.deduplicationEvidence = [];
+    }
+
+    request.deduplicationEvidence.push(evidence);
+  }
+
+  private appendMergeHistory(
+    request: RequestEntity,
+    entry: RequestMergeHistoryEntry,
+  ): void {
+    if (!request.mergeHistory) {
+      request.mergeHistory = [];
+    }
+
+    request.mergeHistory.push(entry);
+  }
+
+  private bumpDeduplicationMetric(
+    organizationId: string,
+    field: keyof DeduplicationMetrics,
+  ): void {
+    const current = this.deduplicationMetricsByOrganization.get(
+      organizationId,
+    ) ?? {
+      totalEvaluations: 0,
+      created: 0,
+      suggested: 0,
+      autoLinked: 0,
+      autoMerged: 0,
+      manualMerged: 0,
+      reversals: 0,
+    };
+
+    current[field] += 1;
+    this.deduplicationMetricsByOrganization.set(organizationId, current);
+  }
+
+  private async publishDeduplicationDecisionEvent(
+    actor: AuthenticatedUser,
+    payload: {
+      decision: RequestDeduplicationDecision;
+      sourceRequestId?: string;
+      targetRequestId?: string;
+      similarityScore?: number;
+      candidatesCount: number;
+    },
+  ): Promise<void> {
+    this.domainEventsService.publish({
+      name: 'request.deduplication_decision_made',
+      occurredAt: new Date().toISOString(),
+      actorId: actor.id,
+      organizationId: actor.organizationId,
+      payload,
+    });
   }
 
   private async findById(

@@ -17,6 +17,12 @@ export interface FirefliesConfigRecord {
   updatedAt: string;
 }
 
+export interface LinearWebhookSecurityConfigRecord {
+  signingSecret: string;
+  toleranceSeconds: number;
+  updatedAt: string;
+}
+
 @Injectable()
 export class IntegrationConfigsRepository {
   constructor(
@@ -115,6 +121,56 @@ export class IntegrationConfigsRepository {
       workspaceId: doc.workspaceId,
       projectId: doc.projectId,
       defaultLanguage: doc.defaultLanguage,
+      updatedAt: doc.updatedAt,
+    };
+  }
+
+  async upsertLinearWebhookSecurityConfig(
+    organizationId: string,
+    config: Omit<LinearWebhookSecurityConfigRecord, 'updatedAt'>,
+  ): Promise<void> {
+    await this.integrationConfigModel
+      .updateOne(
+        {
+          organizationId,
+          provider: IntegrationProvider.Linear,
+        },
+        {
+          $set: {
+            organizationId,
+            provider: IntegrationProvider.Linear,
+            signingSecret: config.signingSecret,
+            toleranceSeconds: config.toleranceSeconds,
+            updatedAt: new Date().toISOString(),
+          },
+        },
+        { upsert: true },
+      )
+      .exec();
+  }
+
+  async findLinearWebhookSecurityConfig(
+    organizationId: string,
+  ): Promise<LinearWebhookSecurityConfigRecord | undefined> {
+    const doc = await this.integrationConfigModel
+      .findOne({
+        organizationId,
+        provider: IntegrationProvider.Linear,
+      })
+      .lean<IntegrationConfigModel>()
+      .exec();
+
+    if (
+      !doc?.signingSecret ||
+      typeof doc.toleranceSeconds !== 'number' ||
+      !doc.updatedAt
+    ) {
+      return undefined;
+    }
+
+    return {
+      signingSecret: doc.signingSecret,
+      toleranceSeconds: doc.toleranceSeconds,
       updatedAt: doc.updatedAt,
     };
   }

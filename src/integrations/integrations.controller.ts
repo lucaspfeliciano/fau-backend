@@ -29,6 +29,10 @@ import {
   type HubSpotSyncInput,
 } from './dto/hubspot-sync.schema';
 import {
+  LinearWebhookSecurityConfigSchema,
+  type LinearWebhookSecurityConfigInput,
+} from './dto/linear-webhook-security-config.schema';
+import {
   LinearSyncSchema,
   type LinearSyncInput,
 } from './dto/linear-sync.schema';
@@ -36,6 +40,14 @@ import {
   LinearWebhookTaskStatusSchema,
   type LinearWebhookTaskStatusInput,
 } from './dto/linear-webhook-task-status.schema';
+import {
+  ReconcileIntegrationsSchema,
+  type ReconcileIntegrationsInput,
+} from './dto/reconcile-integrations.schema';
+import {
+  ReprocessIntegrationsSchema,
+  type ReprocessIntegrationsInput,
+} from './dto/reprocess-integrations.schema';
 import {
   SlackImportMessageSchema,
   type SlackImportMessageInput,
@@ -52,6 +64,20 @@ import { IntegrationsService } from './integrations.service';
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class IntegrationsController {
   constructor(private readonly integrationsService: IntegrationsService) {}
+
+  @Get('source-of-truth/ownership')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Get ownership contracts and conflict precedence' })
+  @ApiOkResponse({
+    description: 'Returns source-of-truth ownership contracts.',
+  })
+  getOwnershipContracts(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Record<string, unknown> {
+    return this.integrationsService.getOwnershipContracts(
+      user.organizationId,
+    ) as Record<string, unknown>;
+  }
 
   @Post('fireflies/config')
   @Roles(Role.Admin, Role.Editor)
@@ -212,6 +238,26 @@ export class IntegrationsController {
     return this.integrationsService.handleLinearWebhookTaskStatus(body, user);
   }
 
+  @Post('linear/webhook/config')
+  @Roles(Role.Admin)
+  @ApiOperation({ summary: 'Configure Linear webhook signature validation' })
+  @ApiBody({
+    schema: {
+      example: {
+        signingSecret: 'linear_webhook_secret_value',
+        toleranceSeconds: 300,
+      },
+    },
+  })
+  @ApiCreatedResponse({ description: 'Linear webhook security configured.' })
+  configureLinearWebhookSecurity(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body(new ZodValidationPipe(LinearWebhookSecurityConfigSchema))
+    body: LinearWebhookSecurityConfigInput,
+  ) {
+    return this.integrationsService.configureLinearWebhookSecurity(body, user);
+  }
+
   @Post('slack/import-message')
   @Roles(Role.Admin, Role.Editor)
   @ApiOperation({ summary: 'Import Slack message into AI processing pipeline' })
@@ -234,6 +280,47 @@ export class IntegrationsController {
     return this.integrationsService.importSlackMessage(body, user);
   }
 
+  @Post('reconcile')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Reconcile integration divergences by provider' })
+  @ApiBody({
+    schema: {
+      example: {
+        provider: 'linear',
+        dryRun: false,
+        autoResolveMissingInternal: true,
+      },
+    },
+  })
+  @ApiCreatedResponse({ description: 'Reconciliation executed.' })
+  reconcileIntegrations(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body(new ZodValidationPipe(ReconcileIntegrationsSchema))
+    body: ReconcileIntegrationsInput,
+  ) {
+    return this.integrationsService.reconcileIntegrations(body, user);
+  }
+
+  @Post('reprocess')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Trigger selective reprocessing for a provider' })
+  @ApiBody({
+    schema: {
+      example: {
+        provider: 'linear',
+        taskIds: ['task-1', 'task-2'],
+      },
+    },
+  })
+  @ApiCreatedResponse({ description: 'Selective reprocessing triggered.' })
+  reprocessIntegrations(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body(new ZodValidationPipe(ReprocessIntegrationsSchema))
+    body: ReprocessIntegrationsInput,
+  ) {
+    return this.integrationsService.reprocessIntegrations(body, user);
+  }
+
   @Get('status')
   @ApiOperation({
     summary: 'Get integrations health/status for current organization',
@@ -243,5 +330,17 @@ export class IntegrationsController {
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   getStatus(@CurrentUser() user: AuthenticatedUser) {
     return this.integrationsService.getStatus(user.organizationId);
+  }
+
+  @Get('dashboard')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Get integrations operational dashboard' })
+  @ApiOkResponse({ description: 'Returns operational integration dashboard.' })
+  async getDashboard(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Record<string, unknown>> {
+    return (await this.integrationsService.getOperationalDashboard(
+      user.organizationId,
+    )) as Record<string, unknown>;
   }
 }

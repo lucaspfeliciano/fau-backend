@@ -4,6 +4,8 @@
 
 Consolidar a plataforma como fonte de verdade e evoluir integracoes para sincronizacao robusta sem perder governanca interna.
 
+Status backend: concluido.
+
 ## Resultado Esperado
 
 No final da sprint, o produto entrega:
@@ -46,12 +48,12 @@ No final da sprint, o produto entrega:
 
 ## Checklist de Acompanhamento
 
-- [ ] Definir e documentar ownership de dados por dominio.
-- [ ] Implementar reconciliacao de divergencias.
-- [ ] Implementar politica de conflitos e precedencia.
-- [ ] Garantir seguranca de entrada em webhooks.
-- [ ] Implementar dashboard de status das integracoes.
-- [ ] Validar cenarios de falha e reprocessamento.
+- [x] Definir e documentar ownership de dados por dominio.
+- [x] Implementar reconciliacao de divergencias.
+- [x] Implementar politica de conflitos e precedencia.
+- [x] Garantir seguranca de entrada em webhooks.
+- [x] Implementar dashboard de status das integracoes.
+- [x] Validar cenarios de falha e reprocessamento.
 
 ## Critérios de Aceite
 

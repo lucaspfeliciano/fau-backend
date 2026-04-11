@@ -18,6 +18,63 @@ class RequestStatusHistoryModel {
   changedAt!: string;
 }
 
+@Schema({ _id: false })
+class RequestDeduplicationEvidenceModel {
+  @Prop({ type: String, required: true })
+  recordedAt!: string;
+
+  @Prop({ type: String })
+  recordedBy?: string;
+
+  @Prop({ type: String, required: true })
+  sourceType!: string;
+
+  @Prop({ type: String })
+  sourceRef?: string;
+
+  @Prop({ type: String })
+  summary?: string;
+
+  @Prop({ type: Number })
+  similarityScore?: number;
+
+  @Prop({ type: String })
+  linkedRequestId?: string;
+
+  @Prop({ type: String })
+  mergedRequestId?: string;
+
+  @Prop({ type: String, required: true })
+  decision!: string;
+}
+
+@Schema({ _id: false })
+class RequestMergeHistoryModel {
+  @Prop({ type: String, required: true })
+  mergeId!: string;
+
+  @Prop({ type: String, required: true })
+  occurredAt!: string;
+
+  @Prop({ type: String })
+  actorId?: string;
+
+  @Prop({ type: String, required: true })
+  mode!: string;
+
+  @Prop({ type: String, required: true })
+  sourceRequestId!: string;
+
+  @Prop({ type: String, required: true })
+  targetRequestId!: string;
+
+  @Prop({ type: Number })
+  similarityScore?: number;
+
+  @Prop({ type: String })
+  reason?: string;
+}
+
 @Schema({ collection: 'requests', versionKey: false })
 export class RequestModel {
   @Prop({ type: String, required: true, unique: true })
@@ -62,6 +119,18 @@ export class RequestModel {
   @Prop({ type: String })
   ingestedAt?: string;
 
+  @Prop({ type: String, index: true })
+  mergedIntoRequestId?: string;
+
+  @Prop({ type: [String], default: [] })
+  mergedRequestIds!: string[];
+
+  @Prop({ type: [RequestDeduplicationEvidenceModel], default: [] })
+  deduplicationEvidence!: RequestDeduplicationEvidenceModel[];
+
+  @Prop({ type: [RequestMergeHistoryModel], default: [] })
+  mergeHistory!: RequestMergeHistoryModel[];
+
   @Prop({ type: [RequestStatusHistoryModel], default: [] })
   statusHistory!: RequestStatusHistoryModel[];
 
@@ -80,3 +149,8 @@ export const RequestSchema = SchemaFactory.createForClass(RequestModel);
 RequestSchema.index({ organizationId: 1, updatedAt: -1 });
 RequestSchema.index({ organizationId: 1, status: 1, deletedAt: 1 });
 RequestSchema.index({ organizationId: 1, boardId: 1, deletedAt: 1 });
+RequestSchema.index({
+  organizationId: 1,
+  mergedIntoRequestId: 1,
+  deletedAt: 1,
+});

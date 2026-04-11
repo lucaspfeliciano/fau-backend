@@ -30,6 +30,12 @@ export class IntegrationConfigModel {
   @Prop({ type: String })
   defaultLanguage?: string;
 
+  @Prop({ type: String })
+  signingSecret?: string;
+
+  @Prop({ type: Number })
+  toleranceSeconds?: number;
+
   @Prop({ type: String, required: true })
   updatedAt!: string;
 }
