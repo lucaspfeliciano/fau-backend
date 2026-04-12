@@ -1,9 +1,22 @@
 import { z } from 'zod';
 
-export const QueryAdoptionSchema = z.object({
-  startDate: z.string().trim().min(1),
-  endDate: z.string().trim().min(1),
-  teamId: z.string().trim().min(1).optional(),
-});
+const dateString = z
+  .string()
+  .trim()
+  .min(1)
+  .refine((value) => !Number.isNaN(Date.parse(value)), {
+    message: 'Invalid datetime value.',
+  });
+
+export const QueryAdoptionSchema = z
+  .object({
+    startDate: dateString,
+    endDate: dateString,
+    teamId: z.string().trim().min(1).optional(),
+  })
+  .refine((data) => Date.parse(data.startDate) <= Date.parse(data.endDate), {
+    message: 'startDate must be before or equal to endDate.',
+    path: ['startDate'],
+  });
 
 export type QueryAdoptionInput = z.infer<typeof QueryAdoptionSchema>;

@@ -24,6 +24,7 @@ import { ReleasesRepository } from './repositories/releases.repository';
 
 @Injectable()
 export class NotificationsService implements OnModuleInit, OnModuleDestroy {
+  private static readonly AGGREGATION_PAGE_LIMIT = 100;
   private unsubscribeHandler?: () => void;
 
   constructor(
@@ -197,46 +198,12 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   }
 
   async getRoadmapOverview(organizationId: string) {
-    const features = (
-      await this.productService.listFeatures(
-        {
-          page: 1,
-          limit: 1000,
-        },
-        organizationId,
-      )
-    ).items;
-
-    const sprints = (
-      await this.engineeringService.listSprints(
-        {
-          page: 1,
-          limit: 1000,
-        },
-        organizationId,
-      )
-    ).items;
-
-    const requests = (
-      await this.requestsService.list(
-        {
-          page: 1,
-          limit: 1000,
-          includeArchived: false,
-        },
-        organizationId,
-      )
-    ).items;
-
-    const tasks = (
-      await this.engineeringService.listTasks(
-        {
-          page: 1,
-          limit: 1000,
-        },
-        organizationId,
-      )
-    ).items;
+    const [features, sprints, requests, tasks] = await Promise.all([
+      this.collectAllFeatures(organizationId),
+      this.collectAllSprints(organizationId),
+      this.collectAllRequests(organizationId),
+      this.collectAllTasks(organizationId),
+    ]);
 
     const upcomingReleases = (await this.listReleases(organizationId)).slice(
       0,
@@ -287,29 +254,13 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       organizationId,
     );
 
-    const allFeatures = (
-      await this.productService.listFeatures(
-        {
-          page: 1,
-          limit: 1000,
-        },
-        organizationId,
-      )
-    ).items;
+    const allFeatures = await this.collectAllFeatures(organizationId);
 
     const features = allFeatures.filter((feature) =>
       feature.requestIds.includes(requestId),
     );
 
-    const allTasks = (
-      await this.engineeringService.listTasks(
-        {
-          page: 1,
-          limit: 1000,
-        },
-        organizationId,
-      )
-    ).items;
+    const allTasks = await this.collectAllTasks(organizationId);
 
     const featureIds = new Set(features.map((feature) => feature.id));
     const tasks = allTasks.filter((task) => featureIds.has(task.featureId));
@@ -392,6 +343,83 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     };
 
     await this.notificationsRepository.insert(notification);
+  }
+
+  private async collectAllRequests(organizationId: string) {
+    return this.collectAllPages((page, limit) =>
+      this.requestsService.list(
+        {
+          page,
+          limit,
+          includeArchived: false,
+        },
+        organizationId,
+      ),
+    );
+  }
+
+  private async collectAllFeatures(organizationId: string) {
+    return this.collectAllPages((page, limit) =>
+      this.productService.listFeatures(
+        {
+          page,
+          limit,
+        },
+        organizationId,
+      ),
+    );
+  }
+
+  private async collectAllTasks(organizationId: string) {
+    return this.collectAllPages((page, limit) =>
+      this.engineeringService.listTasks(
+        {
+          page,
+          limit,
+        },
+        organizationId,
+      ),
+    );
+  }
+
+  private async collectAllSprints(organizationId: string) {
+    return this.collectAllPages((page, limit) =>
+      this.engineeringService.listSprints(
+        {
+          page,
+          limit,
+        },
+        organizationId,
+      ),
+    );
+  }
+
+  private async collectAllPages<T>(
+    fetchPage: (
+      page: number,
+      limit: number,
+    ) => Promise<{ items: T[]; totalPages: number }>,
+  ): Promise<T[]> {
+    const items: T[] = [];
+    let page = 1;
+    let totalPages = 1;
+
+    while (page <= totalPages) {
+      const result = await fetchPage(
+        page,
+        NotificationsService.AGGREGATION_PAGE_LIMIT,
+      );
+      items.push(...result.items);
+
+      totalPages = result.totalPages;
+      if (totalPages === 0) {
+        break;
+      }
+
+      page += 1;
+    }
+
+    return items;
   }
 
   private async findOrCreatePreference(

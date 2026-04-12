@@ -12,6 +12,8 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
+    "openapi:generate": "ts-node src/scripts/generate-openapi.ts",
+    "openapi:verify:sprint-09-14": "ts-node src/scripts/verify-openapi-sprint-09-14.ts",
     "seed:test-account": "ts-node src/scripts/seed-test-account.ts",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",

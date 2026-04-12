@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
+import { DomainEventsService } from '../common/events/domain-events.service';
 import { HealthEventsRepository } from './repositories/health-events.repository';
 
 @Injectable()
 export class HealthService {
   constructor(
     private readonly healthEventsRepository: HealthEventsRepository,
+    private readonly domainEventsService: DomainEventsService,
   ) {}
 
   async listEvents(options: {
@@ -28,5 +30,9 @@ export class HealthService {
       limit: options.limit,
       summary,
     };
+  }
+
+  getEventPipelineStatus() {
+    return this.domainEventsService.getOperationalSnapshot();
   }
 }

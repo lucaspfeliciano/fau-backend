@@ -44,4 +44,18 @@ export class HealthController {
       endDate: query.endDate,
     });
   }
+
+  @Get('events/pipeline')
+  @Roles(Role.Admin)
+  @ApiOperation({
+    summary: 'Get domain event pipeline observability metrics and catalog',
+  })
+  @ApiOkResponse({
+    description:
+      'Returns event runtime counters, outbox stats and event catalog.',
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  getEventPipelineStatus() {
+    return this.healthService.getEventPipelineStatus();
+  }
 }

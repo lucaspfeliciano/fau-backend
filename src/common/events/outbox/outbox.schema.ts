@@ -38,3 +38,6 @@ export class OutboxEventModel {
 export const OutboxEventSchema = SchemaFactory.createForClass(OutboxEventModel);
 
 OutboxEventSchema.index({ status: 1, nextRetryAt: 1, createdAt: 1 });
+OutboxEventSchema.index({ organizationId: 1, 'serializedEvent.occurredAt': 1 });
+OutboxEventSchema.index({ 'serializedEvent.name': 1 });
+OutboxEventSchema.index({ 'serializedEvent.actorId': 1 });

@@ -107,6 +107,7 @@ interface ProviderDashboardItem {
 
 @Injectable()
 export class IntegrationsService {
+  private static readonly SYNC_PAGE_LIMIT = 100;
   private readonly logger = new Logger(IntegrationsService.name);
   private readonly ownershipContracts: OwnershipContracts = {
     company: {
@@ -830,16 +831,10 @@ export class IntegrationsService {
 
   async syncLinear(input: LinearSyncInput, actor: AuthenticatedUser) {
     const taskIds = input.taskIds ?? [];
-    const tasksResult = await this.engineeringService.listTasks(
-      {
-        page: 1,
-        limit: 1000,
-      },
-      actor.organizationId,
-    );
+    const tasksResult = await this.collectAllTasks(actor.organizationId);
 
     const targetTaskIds =
-      taskIds.length > 0 ? taskIds : tasksResult.items.map((task) => task.id);
+      taskIds.length > 0 ? taskIds : tasksResult.map((task) => task.id);
 
     let synced = 0;
 
@@ -879,6 +874,34 @@ export class IntegrationsService {
     return {
       synced,
     };
+  }
+
+  private async collectAllTasks(organizationId: string) {
+    const tasks = [] as Awaited<
+      ReturnType<EngineeringService['listTasks']>
+    >['items'];
+    let page = 1;
+    let totalPages = 1;
+
+    while (page <= totalPages) {
+      const result = await this.engineeringService.listTasks(
+        {
+          page,
+          limit: IntegrationsService.SYNC_PAGE_LIMIT,
+        },
+        organizationId,
+      );
+
+      tasks.push(...result.items);
+      totalPages = result.totalPages;
+      if (totalPages === 0) {
+        break;
+      }
+
+      page += 1;
+    }
+
+    return tasks;
   }
 
   async handleLinearWebhookTaskStatus(

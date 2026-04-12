@@ -89,6 +89,7 @@ interface AiQualityMetrics {
 
 @Injectable()
 export class AiProcessingService {
+  private static readonly MATCHING_PAGE_LIMIT = 100;
   private readonly logger = new Logger(AiProcessingService.name);
   private readonly qualityMetricsByOrganization = new Map<
     string,
@@ -321,16 +322,9 @@ export class AiProcessingService {
       );
     }
 
-    const organizationRequests = (
-      await this.requestsService.list(
-        {
-          page: 1,
-          limit: 1000,
-          includeArchived: false,
-        },
-        actor.organizationId,
-      )
-    ).items;
+    const organizationRequests = await this.collectAllRequests(
+      actor.organizationId,
+    );
 
     const normalizedText = input.text.trim().toLowerCase();
     if (!normalizedText) {
@@ -836,5 +830,34 @@ export class AiProcessingService {
       .split(/\s+/)
       .map((token) => token.trim())
       .filter((token) => token.length >= 3);
+  }
+
+  private async collectAllRequests(
+    organizationId: string,
+  ): Promise<RequestEntity[]> {
+    const requests: RequestEntity[] = [];
+    let page = 1;
+    let totalPages = 1;
+
+    while (page <= totalPages) {
+      const result = await this.requestsService.list(
+        {
+          page,
+          limit: AiProcessingService.MATCHING_PAGE_LIMIT,
+          includeArchived: false,
+        },
+        organizationId,
+      );
+
+      requests.push(...result.items);
+      totalPages = result.totalPages;
+      if (totalPages === 0) {
+        break;
+      }
+
+      page += 1;
+    }
+
+    return requests;
   }
 }

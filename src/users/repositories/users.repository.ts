@@ -122,4 +122,20 @@ export class UsersRepository {
       })
       .exec();
   }
+
+  async listUserIdsByTeam(
+    organizationId: string,
+    teamId: string,
+  ): Promise<string[]> {
+    return this.userModel
+      .distinct('id', {
+        memberships: {
+          $elemMatch: {
+            organizationId,
+            teamIds: teamId,
+          },
+        },
+      })
+      .exec();
+  }
 }

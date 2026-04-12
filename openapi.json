@@ -1,1 +1,3548 @@
-{"openapi":"3.0.0","paths":{"/":{"get":{"operationId":"AppController_getHello","parameters":[],"responses":{"200":{"description":""}},"tags":["App"]}},"/organizations":{"post":{"operationId":"OrganizationsController_create","parameters":[],"requestBody":{"required":true,"content":{"application/json":{"schema":{"example":{"name":"Acme Corp"}}}}},"responses":{"201":{"description":"Organization created successfully."},"401":{"description":"Missing or invalid bearer token."}},"security":[{"bearer":[]}],"summary":"Create an organization for the current user","tags":["Organizations"]}},"/organizations/me":{"get":{"operationId":"OrganizationsController_getMe","parameters":[],"responses":{"200":{"description":"Returns organization and role in current context."},"401":{"description":"Missing or invalid bearer token."},"404":{"description":"No organization found for this user."}},"security":[{"bearer":[]}],"summary":"Get current organization context for user","tags":["Organizations"]}},"/companies":{"post":{"operationId":"CompaniesController_create","parameters":[],"requestBody":{"required":true,"content":{"application/json":{"schema":{"example":{"name":"Acme Corp","revenue":150000}}}}},"responses":{"201":{"description":"Company created successfully."},"401":{"description":"Missing or invalid bearer token."},"403":{"description":"Role does not allow this operation."}},"security":[{"bearer":[]}],"summary":"Create company","tags":["Companies"]},"get":{"operationId":"CompaniesController_list","parameters":[],"responses":{"200":{"description":"Returns paginated companies."},"401":{"description":"Missing or invalid bearer token."}},"security":[{"bearer":[]}],"summary":"List companies","tags":["Companies"]}},"/companies/{id}":{"get":{"operationId":"CompaniesController_findById","parameters":[{"name":"id","required":true,"in":"path","description":"Company id","schema":{"type":"string"}}],"responses":{"200":{"description":"Returns company details."},"401":{"description":"Missing or invalid bearer token."}},"security":[{"bearer":[]}],"summary":"Get company by id","tags":["Companies"]},"patch":{"operationId":"CompaniesController_update","parameters":[{"name":"id","required":true,"in":"path","description":"Company id","schema":{"type":"string"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"example":{"name":"Acme Enterprise","revenue":450000}}}}},"responses":{"200":{"description":"Company updated successfully."},"401":{"description":"Missing or invalid bearer token."},"403":{"description":"Role does not allow this operation."}},"security":[{"bearer":[]}],"summary":"Update company","tags":["Companies"]}},"/customers":{"post":{"operationId":"CustomersController_create","parameters":[],"requestBody":{"required":true,"content":{"application/json":{"schema":{"example":{"name":"Alice Johnson","email":"alice@acme.com","companyId":"company-id"}}}}},"responses":{"201":{"description":"Customer created successfully."},"401":{"description":"Missing or invalid bearer token."},"403":{"description":"Role does not allow this operation."}},"security":[{"bearer":[]}],"summary":"Create customer","tags":["Customers"]},"get":{"operationId":"CustomersController_list","parameters":[],"responses":{"200":{"description":"Returns paginated customers."},"401":{"description":"Missing or invalid bearer token."}},"security":[{"bearer":[]}],"summary":"List customers","tags":["Customers"]}},"/customers/{id}":{"get":{"operationId":"CustomersController_findById","parameters":[{"name":"id","required":true,"in":"path","description":"Customer id","schema":{"type":"string"}}],"responses":{"200":{"description":"Returns customer details."},"401":{"description":"Missing or invalid bearer token."}},"security":[{"bearer":[]}],"summary":"Get customer by id","tags":["Customers"]},"patch":{"operationId":"CustomersController_update","parameters":[{"name":"id","required":true,"in":"path","description":"Customer id","schema":{"type":"string"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"example":{"name":"Alice Johnson Silva","email":"alice.silva@acme.com"}}}}},"responses":{"200":{"description":"Customer updated successfully."},"401":{"description":"Missing or invalid bearer token."},"403":{"description":"Role does not allow this operation."}},"security":[{"bearer":[]}],"summary":"Update customer","tags":["Customers"]}},"/requests":{"post":{"operationId":"RequestsController_create","parameters":[],"requestBody":{"required":true,"content":{"application/json":{"schema":{"example":{"title":"Need dark mode","description":"Customers requested dark mode in dashboard.","tags":["ui","dashboard"],"sourceType":"manual"}}}}},"responses":{"201":{"description":"Request created successfully."},"401":{"description":"Missing or invalid bearer token."},"403":{"description":"Role does not allow this operation."}},"security":[{"bearer":[]}],"summary":"Create request","tags":["Requests"]},"get":{"operationId":"RequestsController_list","parameters":[],"responses":{"200":{"description":"Returns paginated requests."},"401":{"description":"Missing or invalid bearer token."}},"security":[{"bearer":[]}],"summary":"List requests with pagination and filters","tags":["Requests"]}},"/requests/{id}":{"get":{"operationId":"RequestsController_findById","parameters":[{"name":"id","required":true,"in":"path","description":"Request id","schema":{"type":"string"}}],"responses":{"200":{"description":"Returns request by id."},"401":{"description":"Missing or invalid bearer token."}},"security":[{"bearer":[]}],"summary":"Get request by id","tags":["Requests"]},"patch":{"operationId":"RequestsController_update","parameters":[{"name":"id","required":true,"in":"path","description":"Request id","schema":{"type":"string"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"example":{"status":"Planned","tags":["ui","priority-high"]}}}}},"responses":{"200":{"description":"Request updated successfully."},"401":{"description":"Missing or invalid bearer token."},"403":{"description":"Role does not allow this operation."}},"security":[{"bearer":[]}],"summary":"Update request by id","tags":["Requests"]},"delete":{"operationId":"RequestsController_archive","parameters":[{"name":"id","required":true,"in":"path","description":"Request id","schema":{"type":"string"}}],"responses":{"200":{"description":"Request archived successfully."},"401":{"description":"Missing or invalid bearer token."},"403":{"description":"Role does not allow this operation."}},"security":[{"bearer":[]}],"summary":"Soft delete request by id","tags":["Requests"]}},"/requests/{id}/updates":{"get":{"operationId":"RequestsController_getUpdates","parameters":[{"name":"id","required":true,"in":"path","description":"Request id","schema":{"type":"string"}}],"responses":{"200":{"description":"Returns request updates history."},"401":{"description":"Missing or invalid bearer token."}},"security":[{"bearer":[]}],"summary":"Get request updates history","tags":["Requests"]}},"/requests/{id}/vote":{"post":{"operationId":"RequestsController_vote","parameters":[{"name":"id","required":true,"in":"path","description":"Request id","schema":{"type":"string"}}],"responses":{"201":{"description":"Vote registered successfully."},"401":{"description":"Missing or invalid bearer token."},"403":{"description":"Role does not allow this operation."}},"security":[{"bearer":[]}],"summary":"Increment request votes","tags":["Requests"]}},"/requests/{id}/customers/{customerId}":{"post":{"operationId":"RequestsController_linkCustomer","parameters":[{"name":"id","required":true,"in":"path","description":"Request id","schema":{"type":"string"}},{"name":"customerId","required":true,"in":"path","description":"Customer id","schema":{"type":"string"}}],"responses":{"201":{"description":"Customer linked to request."},"401":{"description":"Missing or invalid bearer token."},"403":{"description":"Role does not allow this operation."}},"security":[{"bearer":[]}],"summary":"Link customer to request","tags":["Requests"]},"delete":{"operationId":"RequestsController_unlinkCustomer","parameters":[{"name":"id","required":true,"in":"path","description":"Request id","schema":{"type":"string"}},{"name":"customerId","required":true,"in":"path","description":"Customer id","schema":{"type":"string"}}],"responses":{"200":{"description":"Customer unlinked from request."},"401":{"description":"Missing or invalid bearer token."},"403":{"description":"Role does not allow this operation."}},"security":[{"bearer":[]}],"summary":"Unlink customer from request","tags":["Requests"]}},"/requests/{id}/companies/{companyId}":{"post":{"operationId":"RequestsController_linkCompany","parameters":[{"name":"id","required":true,"in":"path","description":"Request id","schema":{"type":"string"}},{"name":"companyId","required":true,"in":"path","description":"Company id","schema":{"type":"string"}}],"responses":{"201":{"description":"Company linked to request."},"401":{"description":"Missing or invalid bearer token."},"403":{"description":"Role does not allow this operation."}},"security":[{"bearer":[]}],"summary":"Link company to request","tags":["Requests"]},"delete":{"operationId":"RequestsController_unlinkCompany","parameters":[{"name":"id","required":true,"in":"path","description":"Request id","schema":{"type":"string"}},{"name":"companyId","required":true,"in":"path","description":"Company id","schema":{"type":"string"}}],"responses":{"200":{"description":"Company unlinked from request."},"401":{"description":"Missing or invalid bearer token."},"403":{"description":"Role does not allow this operation."}},"security":[{"bearer":[]}],"summary":"Unlink company from request","tags":["Requests"]}},"/product/initiatives":{"post":{"operationId":"ProductController_createInitiative","parameters":[],"requestBody":{"required":true,"content":{"application/json":{"schema":{"example":{"title":"Integrations Expansion","description":"Group strategic integrations for Q2.","status":"Planned","priority":"High"}}}}},"responses":{"201":{"description":"Initiative created successfully."},"401":{"description":"Missing or invalid bearer token."},"403":{"description":"Role does not allow this operation."}},"security":[{"bearer":[]}],"summary":"Create initiative","tags":["Product"]},"get":{"operationId":"ProductController_listInitiatives","parameters":[],"responses":{"200":{"description":"Returns paginated initiatives."},"401":{"description":"Missing or invalid bearer token."}},"security":[{"bearer":[]}],"summary":"List initiatives with pagination and filters","tags":["Product"]}},"/product/initiatives/{id}":{"patch":{"operationId":"ProductController_updateInitiative","parameters":[{"name":"id","required":true,"in":"path","description":"Initiative id","schema":{"type":"string"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"example":{"status":"In Progress","priority":"Critical"}}}}},"responses":{"200":{"description":"Initiative updated successfully."},"401":{"description":"Missing or invalid bearer token."},"403":{"description":"Role does not allow this operation."}},"security":[{"bearer":[]}],"summary":"Update initiative by id","tags":["Product"]}},"/product/features":{"post":{"operationId":"ProductController_createFeature","parameters":[],"requestBody":{"required":true,"content":{"application/json":{"schema":{"example":{"title":"Slack alerts v2","description":"Deliver configurable alert templates for enterprise teams.","requestIds":["request-id-1","request-id-2"],"initiativeId":"initiative-id"}}}}},"responses":{"201":{"description":"Feature created successfully."},"401":{"description":"Missing or invalid bearer token."},"403":{"description":"Role does not allow this operation."}},"security":[{"bearer":[]}],"summary":"Create feature from requests","tags":["Product"]},"get":{"operationId":"ProductController_listFeatures","parameters":[],"responses":{"200":{"description":"Returns paginated features."},"401":{"description":"Missing or invalid bearer token."}},"security":[{"bearer":[]}],"summary":"List features with pagination and filters","tags":["Product"]}},"/product/features/{id}":{"patch":{"operationId":"ProductController_updateFeature","parameters":[{"name":"id","required":true,"in":"path","description":"Feature id","schema":{"type":"string"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"example":{"status":"In Progress"}}}}},"responses":{"200":{"description":"Feature updated successfully."},"401":{"description":"Missing or invalid bearer token."},"403":{"description":"Role does not allow this operation."}},"security":[{"bearer":[]}],"summary":"Update feature by id","tags":["Product"]}},"/product/features/{id}/requests/{requestId}":{"post":{"operationId":"ProductController_linkRequest","parameters":[{"name":"id","required":true,"in":"path","description":"Feature id","schema":{"type":"string"}},{"name":"requestId","required":true,"in":"path","description":"Request id","schema":{"type":"string"}}],"responses":{"201":{"description":"Request linked to feature."},"401":{"description":"Missing or invalid bearer token."},"403":{"description":"Role does not allow this operation."}},"security":[{"bearer":[]}],"summary":"Link request to feature","tags":["Product"]}},"/product/features/{id}/traceability":{"get":{"operationId":"ProductController_getFeatureTraceability","parameters":[{"name":"id","required":true,"in":"path","description":"Feature id","schema":{"type":"string"}}],"responses":{"200":{"description":"Returns feature traceability graph."},"401":{"description":"Missing or invalid bearer token."}},"security":[{"bearer":[]}],"summary":"Get feature traceability (requests, customers, companies)","tags":["Product"]}},"/engineering/sprints":{"post":{"operationId":"EngineeringController_createSprint","parameters":[],"requestBody":{"required":true,"content":{"application/json":{"schema":{"example":{"name":"Sprint 24","startDate":"2026-04-14T00:00:00.000Z","endDate":"2026-04-28T00:00:00.000Z","status":"Planned"}}}}},"responses":{"201":{"description":"Sprint created successfully."},"401":{"description":"Missing or invalid bearer token."},"403":{"description":"Role does not allow this operation."}},"security":[{"bearer":[]}],"summary":"Create sprint","tags":["Engineering"]},"get":{"operationId":"EngineeringController_listSprints","parameters":[],"responses":{"200":{"description":"Returns paginated sprints."},"401":{"description":"Missing or invalid bearer token."}},"security":[{"bearer":[]}],"summary":"List sprints with pagination and filters","tags":["Engineering"]}},"/engineering/sprints/{id}":{"patch":{"operationId":"EngineeringController_updateSprint","parameters":[{"name":"id","required":true,"in":"path","description":"Sprint id","schema":{"type":"string"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"example":{"status":"Completed","closeReason":"Roll-over approved due to prod incident."}}}}},"responses":{"200":{"description":"Sprint updated successfully."},"401":{"description":"Missing or invalid bearer token."},"403":{"description":"Role does not allow this operation."}},"security":[{"bearer":[]}],"summary":"Update sprint by id","tags":["Engineering"]}},"/engineering/sprints/{id}/progress":{"get":{"operationId":"EngineeringController_getSprintProgress","parameters":[{"name":"id","required":true,"in":"path","description":"Sprint id","schema":{"type":"string"}}],"responses":{"200":{"description":"Returns sprint progress."},"401":{"description":"Missing or invalid bearer token."}},"security":[{"bearer":[]}],"summary":"Get sprint progress summary","tags":["Engineering"]}},"/engineering/tasks":{"post":{"operationId":"EngineeringController_createTask","parameters":[],"requestBody":{"required":true,"content":{"application/json":{"schema":{"example":{"title":"Implement Slack channel selector","description":"Allow channel mapping by account and environment.","featureId":"feature-id","sprintId":"sprint-id","estimate":8}}}}},"responses":{"201":{"description":"Task created successfully."},"401":{"description":"Missing or invalid bearer token."},"403":{"description":"Role does not allow this operation."}},"security":[{"bearer":[]}],"summary":"Create task from feature","tags":["Engineering"]},"get":{"operationId":"EngineeringController_listTasks","parameters":[],"responses":{"200":{"description":"Returns paginated tasks."},"401":{"description":"Missing or invalid bearer token."}},"security":[{"bearer":[]}],"summary":"List tasks with pagination and filters","tags":["Engineering"]}},"/engineering/tasks/{id}":{"patch":{"operationId":"EngineeringController_updateTask","parameters":[{"name":"id","required":true,"in":"path","description":"Task id","schema":{"type":"string"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"example":{"status":"In Progress"}}}}},"responses":{"200":{"description":"Task updated successfully."},"401":{"description":"Missing or invalid bearer token."},"403":{"description":"Role does not allow this operation."}},"security":[{"bearer":[]}],"summary":"Update task by id","tags":["Engineering"]}},"/engineering/tasks/{id}/assign-sprint/{sprintId}":{"post":{"operationId":"EngineeringController_assignSprint","parameters":[{"name":"id","required":true,"in":"path","description":"Task id","schema":{"type":"string"}},{"name":"sprintId","required":true,"in":"path","description":"Sprint id","schema":{"type":"string"}}],"responses":{"201":{"description":"Task assigned to sprint."},"401":{"description":"Missing or invalid bearer token."},"403":{"description":"Role does not allow this operation."}},"security":[{"bearer":[]}],"summary":"Assign task to sprint","tags":["Engineering"]}},"/engineering/tasks/{id}/traceability":{"get":{"operationId":"EngineeringController_getTaskTraceability","parameters":[{"name":"id","required":true,"in":"path","description":"Task id","schema":{"type":"string"}}],"responses":{"200":{"description":"Returns task traceability graph."},"401":{"description":"Missing or invalid bearer token."}},"security":[{"bearer":[]}],"summary":"Get task traceability (feature -> requests -> customers/companies)","tags":["Engineering"]}},"/teams":{"post":{"operationId":"TeamsController_create","parameters":[],"requestBody":{"required":true,"content":{"application/json":{"schema":{"example":{"name":"Support Team"}}}}},"responses":{"201":{"description":"Team created successfully."},"401":{"description":"Missing or invalid bearer token."},"403":{"description":"Role does not allow team creation."}},"security":[{"bearer":[]}],"summary":"Create a team in the current organization","tags":["Teams"]},"get":{"operationId":"TeamsController_list","parameters":[],"responses":{"200":{"description":"Returns teams for current tenant."},"401":{"description":"Missing or invalid bearer token."}},"security":[{"bearer":[]}],"summary":"List teams for current organization","tags":["Teams"]}},"/auth/providers":{"get":{"operationId":"AuthController_providers","parameters":[],"responses":{"200":{"description":"Returns enabled auth providers for login/signup screens."}},"summary":"List available authentication providers","tags":["Auth"]}},"/auth/register":{"post":{"operationId":"AuthController_registerWithPassword","parameters":[],"requestBody":{"required":true,"content":{"application/json":{"schema":{"example":{"email":"admin@example.com","name":"Admin Example","password":"Senha@123","organizationName":"Acme"}}}}},"responses":{"201":{"description":"Returns access token and current organization context."}},"summary":"Register account with email and password","tags":["Auth"]}},"/auth/login":{"post":{"operationId":"AuthController_loginWithPassword","parameters":[],"requestBody":{"required":true,"content":{"application/json":{"schema":{"example":{"email":"admin@example.com","password":"Senha@123"}}}}},"responses":{"201":{"description":"Returns access token and current organization context."},"401":{"description":"Invalid email or password."}},"summary":"Authenticate with email and password","tags":["Auth"]}},"/auth/google":{"post":{"operationId":"AuthController_loginWithGoogle","parameters":[],"requestBody":{"required":true,"content":{"application/json":{"schema":{"oneOf":[{"type":"object","properties":{"googleId":{"type":"string","example":"google-user-123456"},"email":{"type":"string","example":"admin@example.com"},"name":{"type":"string","example":"Admin Example"},"organizationName":{"type":"string","example":"Acme"}},"required":["googleId","email","name"]},{"type":"object","properties":{"credential":{"type":"string","example":"google-id-token"},"organizationName":{"type":"string","example":"Acme"}},"required":["credential"]}]}}}},"responses":{"201":{"description":"Returns access token and current organization context."}},"summary":"Authenticate with Google profile payload","tags":["Auth"]}},"/auth/me":{"get":{"operationId":"AuthController_me","parameters":[],"responses":{"200":{"description":"Returns authenticated user data and current organization."},"401":{"description":"Missing or invalid bearer token."}},"security":[{"bearer":[]}],"summary":"Return authenticated user profile and context","tags":["Auth"]}},"/ai/requests/import-notes":{"post":{"operationId":"AiProcessingController_importNotes","parameters":[],"requestBody":{"required":true,"content":{"application/json":{"schema":{"example":{"sourceType":"meeting-notes","noteExternalId":"meet-2026-04-10-001","text":"Cliente pediu dashboard por equipe. Relatou bug no filtro avancado que trava ao exportar.","timeoutMs":1200}}}}},"responses":{"201":{"description":"Notes processed successfully."},"401":{"description":"Missing or invalid bearer token."},"403":{"description":"Role does not allow this operation."}},"security":[{"bearer":[]}],"summary":"Import notes and convert unstructured input into structured requests","tags":["AI Processing"]}},"/ai/quality-metrics":{"get":{"operationId":"AiProcessingController_getQualityMetrics","parameters":[],"responses":{"201":{"description":"AI quality metrics returned."},"401":{"description":"Missing or invalid bearer token."},"403":{"description":"Role does not allow this operation."}},"security":[{"bearer":[]}],"summary":"Get AI ingestion quality metrics","tags":["AI Processing"]}},"/integrations/slack/config":{"post":{"operationId":"IntegrationsController_configureSlack","parameters":[],"requestBody":{"required":true,"content":{"application/json":{"schema":{"example":{"webhookUrl":"https://hooks.slack.com/services/T000/B000/XXXXX","defaultChannel":"#product-updates"}}}}},"responses":{"201":{"description":"Slack configured."}},"security":[{"bearer":[]}],"summary":"Configure Slack webhook per organization","tags":["Integrations"]}},"/integrations/slack/sync-events":{"post":{"operationId":"IntegrationsController_syncSlackEvents","parameters":[],"responses":{"201":{"description":"Slack sync executed."}},"security":[{"bearer":[]}],"summary":"Send status change events to Slack","tags":["Integrations"]}},"/integrations/hubspot/sync":{"post":{"operationId":"IntegrationsController_syncHubSpot","parameters":[],"requestBody":{"required":true,"content":{"application/json":{"schema":{"example":{"companies":[{"externalCompanyId":"hs-company-1","name":"Acme Corp","revenue":500000}],"customers":[{"externalCustomerId":"hs-contact-1","name":"Alice Johnson","email":"alice@acme.com","externalCompanyId":"hs-company-1"}]}}}}},"responses":{"201":{"description":"HubSpot sync executed."}},"security":[{"bearer":[]}],"summary":"Sync customers and companies from HubSpot payload","tags":["Integrations"]}},"/integrations/linear/sync":{"post":{"operationId":"IntegrationsController_syncLinear","parameters":[],"requestBody":{"required":true,"content":{"application/json":{"schema":{"example":{"taskIds":["task-id-1","task-id-2"]}}}}},"responses":{"201":{"description":"Linear sync executed."}},"security":[{"bearer":[]}],"summary":"Create or update Linear issues from tasks","tags":["Integrations"]}},"/integrations/linear/webhook/task-status":{"post":{"operationId":"IntegrationsController_applyLinearWebhookStatus","parameters":[],"requestBody":{"required":true,"content":{"application/json":{"schema":{"example":{"externalIssueId":"linear-task-123","status":"Done"}}}}},"responses":{"201":{"description":"Webhook status applied."}},"security":[{"bearer":[]}],"summary":"Consume Linear webhook status updates and reflect internally","tags":["Integrations"]}},"/integrations/slack/import-message":{"post":{"operationId":"IntegrationsController_importSlackMessage","parameters":[],"requestBody":{"required":true,"content":{"application/json":{"schema":{"example":{"noteExternalId":"slack-msg-001","text":"Cliente pediu melhoria no dashboard e relatou bug no export CSV."}}}}},"responses":{"201":{"description":"Slack message processed by AI pipeline."}},"security":[{"bearer":[]}],"summary":"Import Slack message into AI processing pipeline","tags":["Integrations"]}},"/integrations/status":{"get":{"operationId":"IntegrationsController_getStatus","parameters":[],"responses":{"200":{"description":"Returns integration status and metrics."},"401":{"description":"Missing or invalid bearer token."},"403":{"description":"Role does not allow this operation."}},"security":[{"bearer":[]}],"summary":"Get integrations health/status for current organization","tags":["Integrations"]}},"/notifications/preferences":{"post":{"operationId":"NotificationsController_upsertPreferences","parameters":[],"requestBody":{"required":true,"content":{"application/json":{"schema":{"example":{"notifyRequestStatus":true,"notifyFeatureStatus":true,"notifySprintStatus":true,"notifyRelease":true}}}}},"responses":{"201":{"description":"Notification preferences updated."}},"security":[{"bearer":[]}],"summary":"Set notification preferences by organization/team","tags":["Notifications"]},"get":{"operationId":"NotificationsController_getPreferences","parameters":[],"responses":{"200":{"description":"Returns preferences list."}},"security":[{"bearer":[]}],"summary":"List notification preferences","tags":["Notifications"]}},"/notifications":{"get":{"operationId":"NotificationsController_listNotifications","parameters":[],"responses":{"200":{"description":"Returns generated notifications."}},"security":[{"bearer":[]}],"summary":"List generated notifications","tags":["Notifications"]}},"/releases":{"post":{"operationId":"NotificationsController_createRelease","parameters":[],"requestBody":{"required":true,"content":{"application/json":{"schema":{"example":{"version":"v1.0.0","title":"Go-live release","notes":"Initial launch release for v1."}}}}},"responses":{"201":{"description":"Release created."}},"security":[{"bearer":[]}],"summary":"Create release linked to features and sprints","tags":["Notifications"]},"get":{"operationId":"NotificationsController_listReleases","parameters":[],"responses":{"200":{"description":"Returns releases list."}},"security":[{"bearer":[]}],"summary":"List releases","tags":["Notifications"]}},"/roadmap/overview":{"get":{"operationId":"NotificationsController_getRoadmapOverview","parameters":[],"responses":{"200":{"description":"Returns roadmap overview."},"401":{"description":"Missing or invalid bearer token."}},"security":[{"bearer":[]}],"summary":"Get roadmap overview and delivery forecast","tags":["Notifications"]}},"/roadmap/traceability/requests/{id}":{"get":{"operationId":"NotificationsController_getRequestTraceability","parameters":[{"name":"id","required":true,"in":"path","description":"Request id","schema":{"type":"string"}}],"responses":{"200":{"description":"Returns full traceability chain."}},"security":[{"bearer":[]}],"summary":"Get end-to-end traceability for a request","tags":["Notifications"]}}},"info":{"title":"FAU Backend API","description":"Sprint 7 foundation: Auth, Organizations, Teams, Requests, Customers, Companies, Product, Engineering, AI Processing and Integrations layers","version":"1.0.0","contact":{}},"tags":[],"servers":[],"components":{"securitySchemes":{"bearer":{"scheme":"bearer","bearerFormat":"JWT","type":"http"}},"schemas":{}}}
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/": {
+      "get": {
+        "operationId": "AppController_getHello",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/users": {
+      "get": {
+        "operationId": "UsersController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns paginated users."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List users in current organization",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/users/{id}/role": {
+      "patch": {
+        "operationId": "UsersController_updateRole",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "User id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "role": "Editor"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Role updated successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update user role in current organization",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/organizations": {
+      "post": {
+        "operationId": "OrganizationsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "name": "Acme Corp"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Organization created successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create an organization for the current user",
+        "tags": [
+          "Organizations"
+        ]
+      }
+    },
+    "/organizations/me": {
+      "get": {
+        "operationId": "OrganizationsController_getMe",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns organization and role in current context."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "404": {
+            "description": "No organization found for this user."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get current organization context for user",
+        "tags": [
+          "Organizations"
+        ]
+      }
+    },
+    "/boards": {
+      "get": {
+        "operationId": "BoardsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns paginated boards."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List boards",
+        "tags": [
+          "Boards"
+        ]
+      },
+      "post": {
+        "operationId": "BoardsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "name": "Suporte Enterprise",
+                  "description": "Board para feedbacks de contas enterprise."
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Board created successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create board",
+        "tags": [
+          "Boards"
+        ]
+      }
+    },
+    "/boards/{id}": {
+      "patch": {
+        "operationId": "BoardsController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Board id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "name": "Suporte SMB"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Board updated successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update board by id",
+        "tags": [
+          "Boards"
+        ]
+      }
+    },
+    "/companies": {
+      "post": {
+        "operationId": "CompaniesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "name": "Acme Corp",
+                  "revenue": 150000
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Company created successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create company",
+        "tags": [
+          "Companies"
+        ]
+      },
+      "get": {
+        "operationId": "CompaniesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns paginated companies."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List companies",
+        "tags": [
+          "Companies"
+        ]
+      }
+    },
+    "/companies/{id}": {
+      "get": {
+        "operationId": "CompaniesController_findById",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Company id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns company details."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get company by id",
+        "tags": [
+          "Companies"
+        ]
+      },
+      "patch": {
+        "operationId": "CompaniesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Company id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "name": "Acme Enterprise",
+                  "revenue": 450000
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Company updated successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update company",
+        "tags": [
+          "Companies"
+        ]
+      }
+    },
+    "/customers": {
+      "post": {
+        "operationId": "CustomersController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "name": "Alice Johnson",
+                  "email": "alice@acme.com",
+                  "companyId": "company-id"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Customer created successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create customer",
+        "tags": [
+          "Customers"
+        ]
+      },
+      "get": {
+        "operationId": "CustomersController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns paginated customers."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List customers",
+        "tags": [
+          "Customers"
+        ]
+      }
+    },
+    "/customers/{id}": {
+      "get": {
+        "operationId": "CustomersController_findById",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Customer id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns customer details."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get customer by id",
+        "tags": [
+          "Customers"
+        ]
+      },
+      "patch": {
+        "operationId": "CustomersController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Customer id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "name": "Alice Johnson Silva",
+                  "email": "alice.silva@acme.com"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Customer updated successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update customer",
+        "tags": [
+          "Customers"
+        ]
+      }
+    },
+    "/requests": {
+      "post": {
+        "operationId": "RequestsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "title": "Need dark mode",
+                  "description": "Customers requested dark mode in dashboard.",
+                  "tags": [
+                    "ui",
+                    "dashboard"
+                  ],
+                  "sourceType": "manual"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Request created or deduplicated according to intelligent policy."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create request",
+        "tags": [
+          "Requests"
+        ]
+      },
+      "get": {
+        "operationId": "RequestsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns paginated requests."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List requests with pagination and filters",
+        "tags": [
+          "Requests"
+        ]
+      }
+    },
+    "/requests/similar": {
+      "post": {
+        "operationId": "RequestsController_findSimilar",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "title": "Melhorar dashboard de equipe",
+                  "details": "Cliente pediu dashboard por equipe com filtro por squad.",
+                  "boardId": "board-1"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Similar requests returned successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Find similar requests before creation",
+        "tags": [
+          "Requests"
+        ]
+      }
+    },
+    "/requests/deduplication/metrics": {
+      "get": {
+        "operationId": "RequestsController_getDeduplicationMetrics",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns deduplication metrics."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get deduplication operational metrics",
+        "tags": [
+          "Requests"
+        ]
+      }
+    },
+    "/requests/deduplication/audit": {
+      "get": {
+        "operationId": "RequestsController_listDeduplicationAudit",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns deduplication audit trail."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List recent deduplication audit events",
+        "tags": [
+          "Requests"
+        ]
+      }
+    },
+    "/requests/deduplication/merge": {
+      "post": {
+        "operationId": "RequestsController_manualMerge",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "sourceRequestId": "request-dup-1",
+                  "targetRequestId": "request-main-1",
+                  "reason": "Mesmo problema reportado por canais diferentes."
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Merge applied successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Manually merge duplicated requests",
+        "tags": [
+          "Requests"
+        ]
+      }
+    },
+    "/requests/deduplication/revert-merge": {
+      "post": {
+        "operationId": "RequestsController_revertMerge",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "sourceRequestId": "request-dup-1",
+                  "targetRequestId": "request-main-1",
+                  "reason": "Falso positivo detectado na revisao manual."
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Merge reversion applied successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Revert a previous merge decision",
+        "tags": [
+          "Requests"
+        ]
+      }
+    },
+    "/requests/{id}": {
+      "get": {
+        "operationId": "RequestsController_findById",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Request id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns request by id."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get request by id",
+        "tags": [
+          "Requests"
+        ]
+      },
+      "patch": {
+        "operationId": "RequestsController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Request id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "status": "Planned",
+                  "tags": [
+                    "ui",
+                    "priority-high"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Request updated successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update request by id",
+        "tags": [
+          "Requests"
+        ]
+      },
+      "delete": {
+        "operationId": "RequestsController_archive",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Request id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request archived successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Soft delete request by id",
+        "tags": [
+          "Requests"
+        ]
+      }
+    },
+    "/requests/{id}/updates": {
+      "get": {
+        "operationId": "RequestsController_getUpdates",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Request id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns request updates history."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get request updates history",
+        "tags": [
+          "Requests"
+        ]
+      }
+    },
+    "/requests/{id}/comments": {
+      "post": {
+        "operationId": "RequestsController_addComment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Request id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "comment": "Cliente confirmou prioridade alta para o proximo ciclo."
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Comment added successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Add comment to request timeline",
+        "tags": [
+          "Requests"
+        ]
+      },
+      "get": {
+        "operationId": "RequestsController_listComments",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Request id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns request comments list."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List request comments",
+        "tags": [
+          "Requests"
+        ]
+      }
+    },
+    "/requests/{id}/vote": {
+      "post": {
+        "operationId": "RequestsController_vote",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Request id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Vote registered successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Increment request votes",
+        "tags": [
+          "Requests"
+        ]
+      }
+    },
+    "/requests/{id}/customers/{customerId}": {
+      "post": {
+        "operationId": "RequestsController_linkCustomer",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Request id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "customerId",
+            "required": true,
+            "in": "path",
+            "description": "Customer id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Customer linked to request."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Link customer to request",
+        "tags": [
+          "Requests"
+        ]
+      },
+      "delete": {
+        "operationId": "RequestsController_unlinkCustomer",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Request id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "customerId",
+            "required": true,
+            "in": "path",
+            "description": "Customer id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Customer unlinked from request."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Unlink customer from request",
+        "tags": [
+          "Requests"
+        ]
+      }
+    },
+    "/requests/{id}/companies/{companyId}": {
+      "post": {
+        "operationId": "RequestsController_linkCompany",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Request id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "companyId",
+            "required": true,
+            "in": "path",
+            "description": "Company id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Company linked to request."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Link company to request",
+        "tags": [
+          "Requests"
+        ]
+      },
+      "delete": {
+        "operationId": "RequestsController_unlinkCompany",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Request id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "companyId",
+            "required": true,
+            "in": "path",
+            "description": "Company id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Company unlinked from request."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Unlink company from request",
+        "tags": [
+          "Requests"
+        ]
+      }
+    },
+    "/product/initiatives": {
+      "post": {
+        "operationId": "ProductController_createInitiative",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "title": "Integrations Expansion",
+                  "description": "Group strategic integrations for Q2.",
+                  "status": "Planned",
+                  "priority": "High"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Initiative created successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create initiative",
+        "tags": [
+          "Product"
+        ]
+      },
+      "get": {
+        "operationId": "ProductController_listInitiatives",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns paginated initiatives."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List initiatives with pagination and filters",
+        "tags": [
+          "Product"
+        ]
+      }
+    },
+    "/product/initiatives/{id}": {
+      "patch": {
+        "operationId": "ProductController_updateInitiative",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Initiative id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "status": "In Progress",
+                  "priority": "Critical"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Initiative updated successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update initiative by id",
+        "tags": [
+          "Product"
+        ]
+      }
+    },
+    "/product/features": {
+      "post": {
+        "operationId": "ProductController_createFeature",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "title": "Slack alerts v2",
+                  "description": "Deliver configurable alert templates for enterprise teams.",
+                  "requestIds": [
+                    "request-id-1",
+                    "request-id-2"
+                  ],
+                  "initiativeId": "initiative-id"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Feature created successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create feature from requests",
+        "tags": [
+          "Product"
+        ]
+      },
+      "get": {
+        "operationId": "ProductController_listFeatures",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns paginated features."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List features with pagination and filters",
+        "tags": [
+          "Product"
+        ]
+      }
+    },
+    "/product/features/{id}": {
+      "patch": {
+        "operationId": "ProductController_updateFeature",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Feature id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "status": "In Progress"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Feature updated successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update feature by id",
+        "tags": [
+          "Product"
+        ]
+      }
+    },
+    "/product/features/{id}/requests/{requestId}": {
+      "post": {
+        "operationId": "ProductController_linkRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Feature id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "description": "Request id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Request linked to feature."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Link request to feature",
+        "tags": [
+          "Product"
+        ]
+      }
+    },
+    "/product/features/{id}/traceability": {
+      "get": {
+        "operationId": "ProductController_getFeatureTraceability",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Feature id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns feature traceability graph."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get feature traceability (requests, customers, companies)",
+        "tags": [
+          "Product"
+        ]
+      }
+    },
+    "/prioritization/weights": {
+      "get": {
+        "operationId": "PrioritizationController_getWeights",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns weights and tag lists."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get prioritization weights for the organization",
+        "tags": [
+          "Prioritization"
+        ]
+      },
+      "put": {
+        "operationId": "PrioritizationController_updateWeights",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Weights saved."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update prioritization weights (Admin only)",
+        "tags": [
+          "Prioritization"
+        ]
+      }
+    },
+    "/prioritization/ranking/requests": {
+      "get": {
+        "operationId": "PrioritizationController_rankRequests",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Paginated ranked requests with score breakdown."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List requests ranked by composite priority score",
+        "tags": [
+          "Prioritization"
+        ]
+      }
+    },
+    "/prioritization/ranking/features": {
+      "get": {
+        "operationId": "PrioritizationController_rankFeatures",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Paginated ranked features with score breakdown."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List features ranked by composite priority score",
+        "tags": [
+          "Prioritization"
+        ]
+      }
+    },
+    "/prioritization/score/{entityType}/{id}": {
+      "get": {
+        "operationId": "PrioritizationController_getScore",
+        "parameters": [
+          {
+            "name": "entityType",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Score breakdown and weights snapshot."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Explain priority score for one request or feature",
+        "tags": [
+          "Prioritization"
+        ]
+      }
+    },
+    "/engineering/sprints": {
+      "post": {
+        "operationId": "EngineeringController_createSprint",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "name": "Sprint 24",
+                  "startDate": "2026-04-14T00:00:00.000Z",
+                  "endDate": "2026-04-28T00:00:00.000Z",
+                  "status": "Planned"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Sprint created successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create sprint",
+        "tags": [
+          "Engineering"
+        ]
+      },
+      "get": {
+        "operationId": "EngineeringController_listSprints",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns paginated sprints."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List sprints with pagination and filters",
+        "tags": [
+          "Engineering"
+        ]
+      }
+    },
+    "/engineering/sprints/{id}": {
+      "patch": {
+        "operationId": "EngineeringController_updateSprint",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Sprint id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "status": "Completed",
+                  "closeReason": "Roll-over approved due to prod incident."
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sprint updated successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update sprint by id",
+        "tags": [
+          "Engineering"
+        ]
+      }
+    },
+    "/engineering/sprints/{id}/progress": {
+      "get": {
+        "operationId": "EngineeringController_getSprintProgress",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Sprint id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns sprint progress."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get sprint progress summary",
+        "tags": [
+          "Engineering"
+        ]
+      }
+    },
+    "/engineering/tasks": {
+      "post": {
+        "operationId": "EngineeringController_createTask",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "title": "Implement Slack channel selector",
+                  "description": "Allow channel mapping by account and environment.",
+                  "featureId": "feature-id",
+                  "sprintId": "sprint-id",
+                  "estimate": 8
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Task created successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create task from feature",
+        "tags": [
+          "Engineering"
+        ]
+      },
+      "get": {
+        "operationId": "EngineeringController_listTasks",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns paginated tasks."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List tasks with pagination and filters",
+        "tags": [
+          "Engineering"
+        ]
+      }
+    },
+    "/engineering/tasks/{id}": {
+      "patch": {
+        "operationId": "EngineeringController_updateTask",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Task id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "status": "In Progress"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Task updated successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update task by id",
+        "tags": [
+          "Engineering"
+        ]
+      }
+    },
+    "/engineering/tasks/{id}/assign-sprint/{sprintId}": {
+      "post": {
+        "operationId": "EngineeringController_assignSprint",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Task id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sprintId",
+            "required": true,
+            "in": "path",
+            "description": "Sprint id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Task assigned to sprint."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Assign task to sprint",
+        "tags": [
+          "Engineering"
+        ]
+      }
+    },
+    "/engineering/tasks/{id}/traceability": {
+      "get": {
+        "operationId": "EngineeringController_getTaskTraceability",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Task id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns task traceability graph."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get task traceability (feature -> requests -> customers/companies)",
+        "tags": [
+          "Engineering"
+        ]
+      }
+    },
+    "/teams": {
+      "post": {
+        "operationId": "TeamsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "name": "Support Team"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Team created successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow team creation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create a team in the current organization",
+        "tags": [
+          "Teams"
+        ]
+      },
+      "get": {
+        "operationId": "TeamsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns teams for current tenant."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List teams for current organization",
+        "tags": [
+          "Teams"
+        ]
+      }
+    },
+    "/auth/providers": {
+      "get": {
+        "operationId": "AuthController_providers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns enabled auth providers for login/signup screens."
+          }
+        },
+        "summary": "List available authentication providers",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "operationId": "AuthController_registerWithPassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "email": "admin@example.com",
+                  "name": "Admin Example",
+                  "password": "Senha@123",
+                  "organizationName": "Acme"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Returns access token and current organization context."
+          }
+        },
+        "summary": "Register account with email and password",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "operationId": "AuthController_loginWithPassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "email": "admin@example.com",
+                  "password": "Senha@123"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Returns access token and current organization context."
+          },
+          "401": {
+            "description": "Invalid email or password."
+          }
+        },
+        "summary": "Authenticate with email and password",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/google": {
+      "post": {
+        "operationId": "AuthController_loginWithGoogle",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "googleId": {
+                        "type": "string",
+                        "example": "google-user-123456"
+                      },
+                      "email": {
+                        "type": "string",
+                        "example": "admin@example.com"
+                      },
+                      "name": {
+                        "type": "string",
+                        "example": "Admin Example"
+                      },
+                      "organizationName": {
+                        "type": "string",
+                        "example": "Acme"
+                      }
+                    },
+                    "required": [
+                      "googleId",
+                      "email",
+                      "name"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "credential": {
+                        "type": "string",
+                        "example": "google-id-token"
+                      },
+                      "organizationName": {
+                        "type": "string",
+                        "example": "Acme"
+                      }
+                    },
+                    "required": [
+                      "credential"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Returns access token and current organization context."
+          }
+        },
+        "summary": "Authenticate with Google profile payload",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "operationId": "AuthController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns authenticated user data and current organization."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Return authenticated user profile and context",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/ai/requests/import-notes": {
+      "post": {
+        "operationId": "AiProcessingController_importNotes",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "sourceType": "meeting-notes",
+                  "noteExternalId": "meet-2026-04-10-001",
+                  "text": "Cliente pediu dashboard por equipe. Relatou bug no filtro avancado que trava ao exportar.",
+                  "timeoutMs": 1200
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Notes processed successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Import notes and convert unstructured input into structured requests",
+        "tags": [
+          "AI Processing"
+        ]
+      }
+    },
+    "/ai/requests/match-similar": {
+      "post": {
+        "operationId": "AiProcessingController_matchSimilarRequests",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "text": "Cliente pediu dashboard por equipe com filtro por squad."
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Similar matches returned."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Match semantic similar requests for dedupe flow",
+        "tags": [
+          "AI Processing"
+        ]
+      }
+    },
+    "/ai/requests/review-queue": {
+      "get": {
+        "operationId": "AiProcessingController_listReviewQueue",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns review queue items."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List AI review queue items",
+        "tags": [
+          "AI Processing"
+        ]
+      }
+    },
+    "/ai/requests/review-queue/approve-batch": {
+      "post": {
+        "operationId": "AiProcessingController_approveReviewQueueBatch",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "itemIds": [
+                    "queue-item-1",
+                    "queue-item-2"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Batch approval executed."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Approve AI review queue items in batch",
+        "tags": [
+          "AI Processing"
+        ]
+      }
+    },
+    "/ai/requests/review-queue/{itemId}/approve": {
+      "post": {
+        "operationId": "AiProcessingController_approveReviewQueueItem",
+        "parameters": [
+          {
+            "name": "itemId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Queue item approved."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Approve an AI review queue item",
+        "tags": [
+          "AI Processing"
+        ]
+      }
+    },
+    "/ai/requests/review-queue/{itemId}/reject": {
+      "post": {
+        "operationId": "AiProcessingController_rejectReviewQueueItem",
+        "parameters": [
+          {
+            "name": "itemId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Queue item rejected."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Reject an AI review queue item",
+        "tags": [
+          "AI Processing"
+        ]
+      }
+    },
+    "/ai/quality-metrics": {
+      "get": {
+        "operationId": "AiProcessingController_getQualityMetrics",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "AI quality metrics returned."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get AI ingestion quality metrics",
+        "tags": [
+          "AI Processing"
+        ]
+      }
+    },
+    "/integrations/source-of-truth/ownership": {
+      "get": {
+        "operationId": "IntegrationsController_getOwnershipContracts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns source-of-truth ownership contracts."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get ownership contracts and conflict precedence",
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/integrations/fireflies/config": {
+      "post": {
+        "operationId": "IntegrationsController_configureFireflies",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "apiKey": "ff_prod_123456789",
+                  "workspaceId": "workspace-42",
+                  "projectId": "project-alpha",
+                  "defaultLanguage": "pt-BR"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Fireflies configuration saved."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Configure Fireflies credentials and defaults",
+        "tags": [
+          "Integrations"
+        ]
+      },
+      "get": {
+        "operationId": "IntegrationsController_getFirefliesConfig",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns safe Fireflies configuration view."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get current Fireflies configuration summary",
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/integrations/fireflies/import-transcript": {
+      "post": {
+        "operationId": "IntegrationsController_importFirefliesTranscript",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "externalTranscriptId": "ff-tr-0091",
+                  "title": "Call with enterprise customer",
+                  "transcriptText": "Cliente pediu dashboard por squad e reclamou de timeout no export CSV.",
+                  "happenedAt": "2026-04-10T12:00:00.000Z",
+                  "participants": [
+                    "joao@empresa.com",
+                    "alice@acme.com"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Transcript imported and sent to AI extraction flow."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Import Fireflies transcript into AI processing pipeline",
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/integrations/slack/config": {
+      "post": {
+        "operationId": "IntegrationsController_configureSlack",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "webhookUrl": "https://hooks.slack.com/services/T000/B000/XXXXX",
+                  "defaultChannel": "#product-updates"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Slack configured."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Configure Slack webhook per organization",
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/integrations/slack/sync-events": {
+      "post": {
+        "operationId": "IntegrationsController_syncSlackEvents",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Slack sync executed."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Send status change events to Slack",
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/integrations/hubspot/sync": {
+      "post": {
+        "operationId": "IntegrationsController_syncHubSpot",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "companies": [
+                    {
+                      "externalCompanyId": "hs-company-1",
+                      "name": "Acme Corp",
+                      "revenue": 500000
+                    }
+                  ],
+                  "customers": [
+                    {
+                      "externalCustomerId": "hs-contact-1",
+                      "name": "Alice Johnson",
+                      "email": "alice@acme.com",
+                      "externalCompanyId": "hs-company-1"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "HubSpot sync executed."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Sync customers and companies from HubSpot payload",
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/integrations/linear/sync": {
+      "post": {
+        "operationId": "IntegrationsController_syncLinear",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "taskIds": [
+                    "task-id-1",
+                    "task-id-2"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Linear sync executed."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create or update Linear issues from tasks",
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/integrations/linear/webhook/task-status": {
+      "post": {
+        "operationId": "IntegrationsController_applyLinearWebhookStatus",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "externalIssueId": "linear-task-123",
+                  "status": "Done"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Webhook status applied."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Consume Linear webhook status updates and reflect internally",
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/integrations/linear/webhook/config": {
+      "post": {
+        "operationId": "IntegrationsController_configureLinearWebhookSecurity",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "signingSecret": "linear_webhook_secret_value",
+                  "toleranceSeconds": 300
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Linear webhook security configured."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Configure Linear webhook signature validation",
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/integrations/slack/import-message": {
+      "post": {
+        "operationId": "IntegrationsController_importSlackMessage",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "noteExternalId": "slack-msg-001",
+                  "text": "Cliente pediu melhoria no dashboard e relatou bug no export CSV."
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Slack message processed by AI pipeline."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Import Slack message into AI processing pipeline",
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/integrations/reconcile": {
+      "post": {
+        "operationId": "IntegrationsController_reconcileIntegrations",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "provider": "linear",
+                  "dryRun": false,
+                  "autoResolveMissingInternal": true
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Reconciliation executed."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Reconcile integration divergences by provider",
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/integrations/reprocess": {
+      "post": {
+        "operationId": "IntegrationsController_reprocessIntegrations",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "provider": "linear",
+                  "taskIds": [
+                    "task-1",
+                    "task-2"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Selective reprocessing triggered."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Trigger selective reprocessing for a provider",
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/integrations/status": {
+      "get": {
+        "operationId": "IntegrationsController_getStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns integration status and metrics."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get integrations health/status for current organization",
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/integrations/dashboard": {
+      "get": {
+        "operationId": "IntegrationsController_getDashboard",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns operational integration dashboard."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get integrations operational dashboard",
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/integrations/linear/status-mapping": {
+      "get": {
+        "operationId": "IntegrationsController_getLinearStatusMapping",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns current status mapping."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get Linear status mapping for current organization",
+        "tags": [
+          "Integrations"
+        ]
+      },
+      "put": {
+        "operationId": "IntegrationsController_saveLinearStatusMapping",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "items": [
+                    {
+                      "linearStatus": "Todo",
+                      "internalStatus": "Todo",
+                      "enabled": true
+                    },
+                    {
+                      "linearStatus": "In Progress",
+                      "internalStatus": "In Progress",
+                      "enabled": true
+                    },
+                    {
+                      "linearStatus": "Done",
+                      "internalStatus": "Done",
+                      "enabled": true
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Status mapping saved."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Save Linear status mapping",
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/integrations/logs": {
+      "get": {
+        "operationId": "IntegrationsController_listIntegrationLogs",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns paginated integration logs."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List integration sync logs",
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/integrations/logs/{logId}/retry": {
+      "post": {
+        "operationId": "IntegrationsController_retryIntegrationLog",
+        "parameters": [
+          {
+            "name": "logId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Retry triggered."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Retry failed integration sync",
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/notifications/preferences": {
+      "post": {
+        "operationId": "NotificationsController_upsertPreferences",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "notifyRequestStatus": true,
+                  "notifyFeatureStatus": true,
+                  "notifySprintStatus": true,
+                  "notifyRelease": true
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Notification preferences updated."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Set notification preferences by organization/team",
+        "tags": [
+          "Notifications"
+        ]
+      },
+      "get": {
+        "operationId": "NotificationsController_getPreferences",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns preferences list."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List notification preferences",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/notifications": {
+      "get": {
+        "operationId": "NotificationsController_listNotifications",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns generated notifications."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List generated notifications",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/releases": {
+      "post": {
+        "operationId": "NotificationsController_createRelease",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "version": "v1.0.0",
+                  "title": "Go-live release",
+                  "notes": "Initial launch release for v1."
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Release created."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create release linked to features and sprints",
+        "tags": [
+          "Notifications"
+        ]
+      },
+      "get": {
+        "operationId": "NotificationsController_listReleases",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns releases list."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List releases",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/releases/{id}": {
+      "patch": {
+        "operationId": "NotificationsController_updateRelease",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Release id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "title": "Updated release title",
+                  "status": "scheduled",
+                  "scheduledAt": "2026-05-01T00:00:00.000Z"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Release updated successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Role does not allow this operation."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update release by id",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/roadmap/overview": {
+      "get": {
+        "operationId": "NotificationsController_getRoadmapOverview",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns roadmap overview."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get roadmap overview and delivery forecast",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/roadmap/traceability/requests/{id}": {
+      "get": {
+        "operationId": "NotificationsController_getRequestTraceability",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Request id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns full traceability chain."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get end-to-end traceability for a request",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/roadmap/items": {
+      "get": {
+        "operationId": "RoadmapController_listItems",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns paginated roadmap items."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List roadmap items with filters and sorting",
+        "tags": [
+          "Roadmap"
+        ]
+      }
+    },
+    "/roadmap/views": {
+      "get": {
+        "operationId": "RoadmapController_listViews",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns paginated roadmap views."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List roadmap views visible to current user",
+        "tags": [
+          "Roadmap"
+        ]
+      },
+      "post": {
+        "operationId": "RoadmapController_createView",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "name": "Roadmap semanal - produto",
+                  "visibility": "role",
+                  "filters": {
+                    "category": "feature",
+                    "status": "Planned"
+                  },
+                  "sort": {
+                    "sortBy": "score",
+                    "sortOrder": "desc"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Roadmap view created successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Insufficient role for visibility."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create roadmap view",
+        "tags": [
+          "Roadmap"
+        ]
+      }
+    },
+    "/roadmap/views/{id}": {
+      "patch": {
+        "operationId": "RoadmapController_updateView",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Roadmap view id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "example": {
+                  "name": "Roadmap executivo",
+                  "visibility": "organization"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Roadmap view updated successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Insufficient permission for update."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update roadmap view by id",
+        "tags": [
+          "Roadmap"
+        ]
+      },
+      "delete": {
+        "operationId": "RoadmapController_deleteView",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Roadmap view id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Roadmap view deleted successfully."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Insufficient permission for deletion."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete roadmap view by id",
+        "tags": [
+          "Roadmap"
+        ]
+      }
+    },
+    "/audit/events": {
+      "get": {
+        "operationId": "AuditController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns paginated audit events."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List audit events for current organization",
+        "tags": [
+          "Audit"
+        ]
+      }
+    },
+    "/analytics/adoption": {
+      "get": {
+        "operationId": "AnalyticsController_getAdoption",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns adoption metrics."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get adoption metrics by period",
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
+    "/health/events": {
+      "get": {
+        "operationId": "HealthController_listEvents",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns paginated health events with summary."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List operational health events for reliability dashboard",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/health/events/pipeline": {
+      "get": {
+        "operationId": "HealthController_getEventPipelineStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns event runtime counters, outbox stats and event catalog."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get domain event pipeline observability metrics and catalog",
+        "tags": [
+          "Health"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "FAU Backend API",
+    "description": "FAU API v1: multi-tenant CS/Product/Engineering platform (Auth, requests, product, engineering, integrations, roadmap, notifications, audit, analytics, durable domain events).",
+    "version": "1.0.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      }
+    },
+    "schemas": {}
+  }
+}

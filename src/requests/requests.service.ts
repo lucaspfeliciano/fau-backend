@@ -330,6 +330,30 @@ export class RequestsService {
     query: QueryRequestsInput,
     organizationId: string,
   ): Promise<PaginatedRequestsResult> {
+    if (this.requestsRepository.queryByOrganization) {
+      const result = await this.requestsRepository.queryByOrganization(
+        organizationId,
+        {
+          page: query.page,
+          limit: query.limit,
+          includeArchived: query.includeArchived,
+          status: query.status,
+          boardId: query.boardId,
+          tag: query.tag,
+          search: query.search,
+        },
+      );
+
+      return {
+        items: result.items,
+        page: query.page,
+        limit: query.limit,
+        total: result.total,
+        totalPages:
+          result.total === 0 ? 0 : Math.ceil(result.total / query.limit),
+      };
+    }
+
     const filtered = (
       await this.requestsRepository.listByOrganization(organizationId)
     )

@@ -59,6 +59,8 @@ export interface PaginatedRoadmapViewsResult {
 
 @Injectable()
 export class RoadmapService {
+  private static readonly AGGREGATION_PAGE_LIMIT = 100;
+
   constructor(
     private readonly requestsService: RequestsService,
     private readonly productService: ProductService,
@@ -72,53 +74,22 @@ export class RoadmapService {
     query: QueryRoadmapItemsInput,
     organizationId: string,
   ): Promise<PaginatedRoadmapItemsResult> {
-    const [
-      requestsResult,
-      featuresResult,
-      tasksResult,
-      sprintsResult,
-      releases,
-    ] = await Promise.all([
-      this.requestsService.list(
-        {
-          page: 1,
-          limit: 1000,
-          includeArchived: false,
-        },
-        organizationId,
-      ),
-      this.productService.listFeatures(
-        {
-          page: 1,
-          limit: 1000,
-        },
-        organizationId,
-      ),
-      this.engineeringService.listTasks(
-        {
-          page: 1,
-          limit: 1000,
-        },
-        organizationId,
-      ),
-      this.engineeringService.listSprints(
-        {
-          page: 1,
-          limit: 1000,
-        },
-        organizationId,
-      ),
+    const [requests, features, tasks, sprints, releases] = await Promise.all([
+      this.collectAllRequests(organizationId),
+      this.collectAllFeatures(organizationId),
+      this.collectAllTasks(organizationId),
+      this.collectAllSprints(organizationId),
       this.notificationsService.listReleases(organizationId),
     ]);
 
     const sprintById = new Map<string, SprintEntity>(
-      sprintsResult.items.map((sprint) => [sprint.id, sprint]),
+      sprints.map((sprint) => [sprint.id, sprint]),
     );
 
     const allItems: RoadmapItemEntity[] = [
-      ...this.mapRequestItems(requestsResult.items),
-      ...this.mapFeatureItems(featuresResult.items),
-      ...this.mapTaskItems(tasksResult.items, sprintById),
+      ...this.mapRequestItems(requests),
+      ...this.mapFeatureItems(features),
+      ...this.mapTaskItems(tasks, sprintById),
       ...this.mapReleaseItems(releases),
     ];
 
@@ -435,6 +406,86 @@ export class RoadmapService {
     }
 
     return etaA - etaB;
+  }
+
+  private async collectAllRequests(organizationId: string) {
+    return this.collectAllPages((page, limit) =>
+      this.requestsService.list(
+        {
+          page,
+          limit,
+          includeArchived: false,
+        },
+        organizationId,
+      ),
+    );
+  }
+
+  private async collectAllFeatures(organizationId: string) {
+    return this.collectAllPages((page, limit) =>
+      this.productService.listFeatures(
+        {
+          page,
+          limit,
+        },
+        organizationId,
+      ),
+    );
+  }
+
+  private async collectAllTasks(organizationId: string) {
+    return this.collectAllPages((page, limit) =>
+      this.engineeringService.listTasks(
+        {
+          page,
+          limit,
+        },
+        organizationId,
+      ),
+    );
+  }
+
+  private async collectAllSprints(organizationId: string) {
+    return this.collectAllPages((page, limit) =>
+      this.engineeringService.listSprints(
+        {
+          page,
+          limit,
+        },
+        organizationId,
+      ),
+    );
+  }
+
+  private async collectAllPages<T>(
+    fetchPage: (
+      page: number,
+      limit: number,
+    ) => Promise<{ items: T[]; totalPages: number }>,
+  ): Promise<T[]> {
+    const items: T[] = [];
+    let page = 1;
+    let totalPages = 1;
+
+    while (page <= totalPages) {
+      const result = await fetchPage(
+        
+       ,
+      
+        page,
+        RoadmapService.AGGREGATION_PAGE_LIMIT,
+      );
+      items.push(...result.items);
+
+      totalPages = result.totalPages;
+      if (totalPages === 0) {
+        break;
+      }
+
+      page += 1;
+    }
+
+    return items;
   }
 
   private calculateGroupCounts(

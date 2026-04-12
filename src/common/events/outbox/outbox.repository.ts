@@ -116,4 +116,105 @@ export class OutboxRepository {
 
     return docs.map((d) => d.serializedEvent as unknown as DomainEvent);
   }
+
+  async countDistinctActorsByRange(options: {
+    organizationId: string;
+    startDate: string;
+    endDate: string;
+    actorIds?: string[];
+  }): Promise<number> {
+    const match: Record<string, unknown> = {
+      organizationId: options.organizationId,
+      'serializedEvent.occurredAt': {
+        $gte: options.startDate,
+        $lte: options.endDate,
+      },
+    };
+
+    if (options.actorIds && options.actorIds.length > 0) {
+      match['serializedEvent.actorId'] = { $in: options.actorIds };
+    } else {
+      match['serializedEvent.actorId'] = { $exists: true, $ne: null };
+    }
+
+    const result = await this.model
+      .aggregate<{ count: number }>([
+        {
+          $match: match,
+        },
+        {
+          $group: {
+            _id: '$serializedEvent.actorId',
+          },
+        },
+        {
+          $count: 'count',
+        },
+      ])
+      .exec();
+
+    return result[0]?.count ?? 0;
+  }
+
+  async listKnownEventNames(): Promise<string[]> {
+    const names = await this.model.distinct('serializedEvent.name').exec();
+
+    return names
+      .filter((name): name is string => typeof name === 'string')
+      .sort((a, b) => a.localeCompare(b));
+  }
+
+  async getOperationalStats(): Promise<{
+    pending: number;
+    completed: number;
+    deadLetter: number;
+    retryable: number;
+    oldestPendingAt?: string;
+    oldestDeadLetterAt?: string;
+  }> {
+    const now = new Date();
+
+    const [
+      pending,
+      completed,
+      deadLetter,
+      retryable,
+      oldestPendingDoc,
+      oldestDeadLetterDoc,
+    ] = await Promise.all([
+      is.model.countDocuments({ status: 'pending' }).exec(),
+     tis.model.countDocuments({ status: 'completed' }).exec(),
+    this.model.countDocuments({ status: 'dead_letter' }).exec(),
+      is.model
+       .ountDocuments({
+        status: 'pending',
+          r: [
+           {nextRetryAt: { $exists: false } },
+          { nextRetryAt: { $lte: now } },
+          
+       }
+      .exec(),
+      is.model
+       .indOne({ status: 'pending' })
+      .select({ createdAt: 1, _id: 0 })
+        ort({ createdAt: 1 })
+       .ean<{ createdAt: Date }>()
+      .exec(),
+      is.model
+       .indOne({ status: 'dead_letter' })
+      .select({ createdAt: 1, _id: 0 })
+        ort({ createdAt: 1 })
+       .ean<{ createdAt: Date }>()
+      .exec(),
+    ]);
+
+    return {
+      pending,
+      completed,
+      deadLetter,
+      retryable,
+      oldestPendingAt: oldestPendingDoc?.createdAt?.toISOString(),
+      oldestDeadLetterAt: oldestDeadLetterDoc?.createdAt?.toISOString(),
+    };
+  }
 }

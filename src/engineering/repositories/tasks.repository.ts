@@ -48,4 +48,59 @@ export class TasksRepository {
       .lean<TaskEntity[]>()
       .exec();
   }
+
+  async queryByOrganization(
+    organizationId: string,
+    options: {
+      page: number;
+      limit: number;
+      status?: string;
+      sprintId?: string;
+      featureId?: string;
+      search?: string;
+    },
+  ): Promise<{ items: TaskEntity[]; total: number }> {
+    const filter: Record<string, unknown> = {
+      organizationId,
+    };
+
+    if (options.status) {
+      filter.status = options.status;
+    }
+
+    if (options.sprintId) {
+      filter.sprintId = options.sprintId;
+    }
+
+    if (options.featureId) {
+      filter.featureId = options.featureId;
+    }
+
+    if (options.search) {
+      const searchRegex = {
+        $regex: this.escapeRegex(options.search),
+        $options: 'i',
+      };
+      filter.$or = [{ title: searchRegex }, { description: searchRegex }];
+    }
+
+    const total = await this.taskModel.countDocuments(filter).exec();
+
+    const docs = await this.taskModel
+      .find(filter)
+      .sort({ updatedAt: -1 })
+      .skip((options.page - 1) * options.limit)
+      .limit(options.limit)
+      .lean<TaskEntity[]>()
+      .exec();
+
+    return {
+      items: docs,
+      total,
+    };
+  }
+
+  private escapeRegex(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
 }

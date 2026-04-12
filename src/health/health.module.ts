@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { AccessControlModule } from '../common/auth/access-control.module';
+import { EVENT_FAILURE_REPORTER } from '../common/events/event-failure-reporter.interface';
+import { UsersModule } from '../users/users.module';
+import { EventsHealthReporterService } from './events-health-reporter.service';
 import { HealthController } from './health.controller';
 import { HealthService } from './health.service';
 import {
@@ -11,7 +13,7 @@ import { HealthEventsRepository } from './repositories/health-events.repository'
 
 @Module({
   imports: [
-    AccessControlModule,
+    UsersModule,
     MongooseModule.forFeature([
       {
         name: HealthEventModel.name,
@@ -20,7 +22,15 @@ import { HealthEventsRepository } from './repositories/health-events.repository'
     ]),
   ],
   controllers: [HealthController],
-  providers: [HealthService, HealthEventsRepository],
+  providers: [
+    HealthService,
+    HealthEventsRepository,
+    EventsHealthReporterService,
+    {
+      provide: EVENT_FAILURE_REPORTER,
+      useExisting: EventsHealthReporterService,
+    },
+  ],
   exports: [HealthService],
 })
 export class HealthModule {}

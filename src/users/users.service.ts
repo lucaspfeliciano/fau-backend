@@ -291,6 +291,10 @@ export class UsersService {
     };
   }
 
+  listUserIdsByTeam(organizationId: string, teamId: string): Promise<string[]> {
+    return this.usersRepository.listUserIdsByTeam(organizationId, teamId);
+  }
+
   private touch(user: UserEntity): void {
     user.updatedAt = new Date().toISOString();
   }

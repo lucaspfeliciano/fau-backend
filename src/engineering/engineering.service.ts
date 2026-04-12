@@ -104,6 +104,27 @@ export class EngineeringService {
     query: QuerySprintsInput,
     organizationId: string,
   ): Promise<PaginatedResult<SprintEntity>> {
+    if (typeof this.sprintsRepository.queryByOrganization === 'function') {
+      const result = await this.sprintsRepository.queryByOrganization(
+        organizationId,
+        {
+          page: query.page,
+          limit: query.limit,
+          status: query.status,
+          search: query.search,
+        },
+      );
+
+      return {
+        items: result.items,
+        page: query.page,
+        limit: query.limit,
+        total: result.total,
+        totalPages:
+          result.total === 0 ? 0 : Math.ceil(result.total / query.limit),
+      };
+    }
+
     const sprints =
       await this.sprintsRepository.listByOrganization(organizationId);
 
@@ -276,6 +297,29 @@ export class EngineeringService {
     query: QueryTasksInput,
     organizationId: string,
   ): Promise<PaginatedResult<TaskEntity>> {
+    if (typeof this.tasksRepository.queryByOrganization === 'function') {
+      const result = await this.tasksRepository.queryByOrganization(
+        organizationId,
+        {
+          page: query.page,
+          limit: query.limit,
+          status: query.status,
+          sprintId: query.sprintId,
+          featureId: query.featureId,
+          search: query.search,
+        },
+      );
+
+      return {
+        items: result.items,
+        page: query.page,
+        limit: query.limit,
+        total: result.total,
+        totalPages:
+          result.total === 0 ? 0 : Math.ceil(result.total / query.limit),
+      };
+    }
+
     const tasks = await this.tasksRepository.listByOrganization(organizationId);
 
     const filtered = tasks

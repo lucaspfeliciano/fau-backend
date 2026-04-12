@@ -28,6 +28,71 @@ export class TestingRequestsRepository implements RequestsRepository {
     );
   }
 
+  async queryByOrganization(
+    organizationId: string,
+    options: {
+      page: number;
+      limit: number;
+      includeArchived: boolean;
+      status?: string;
+      boardId?: string;
+      tag?: string;
+      search?: string;
+    },
+  ): Promise<{ items: RequestEntity[]; total: number }> {
+    const filtered = this.requests
+      .filter((request) => request.organizationId === organizationId)
+      .filter((request) => {
+        if (options.includeArchived) {
+          return true;
+        }
+
+        return !request.deletedAt;
+      })
+      .filter((request) => {
+        if (!options.status) {
+          return true;
+        }
+
+        return request.status === options.status;
+      })
+      .filter((request) => {
+        if (!options.boardId) {
+          return true;
+        }
+
+        return request.boardId === options.boardId;
+      })
+      .filter((request) => {
+        if (!options.tag) {
+          return true;
+        }
+
+        const targetTag = options.tag.toLowerCase();
+        return request.tags.some((tag) => tag.toLowerCase() === targetTag);
+      })
+      .filter((request) => {
+        if (!options.search) {
+          return true;
+        }
+
+        const search = options.search.toLowerCase();
+        return (
+          request.title.toLowerCase().includes(search) ||
+          request.description.toLowerCase().includes(search)
+        );
+      })
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+
+    const total = filtered.length;
+    const offset = (options.page - 1) * options.limit;
+
+    return {
+      items: filtered.slice(offset, offset + options.limit),
+      total,
+    };
+  }
+
   async findById(
     requestId: string,
     organizationId: string,

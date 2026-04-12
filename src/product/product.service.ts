@@ -102,6 +102,28 @@ export class ProductService {
     query: QueryInitiativesInput,
     organizationId: string,
   ): Promise<PaginatedResult<InitiativeEntity>> {
+    if (typeof this.initiativesRepository.queryByOrganization === 'function') {
+      const result = await this.initiativesRepository.queryByOrganization(
+        organizationId,
+        {
+          page: query.page,
+          limit: query.limit,
+          status: query.status,
+          priority: query.priority,
+          search: query.search,
+        },
+      );
+
+      return {
+        items: result.items,
+        page: query.page,
+        limit: query.limit,
+        total: result.total,
+        totalPages:
+          result.total === 0 ? 0 : Math.ceil(result.total / query.limit),
+      };
+    }
+
     const initiatives =
       await this.initiativesRepository.listByOrganization(organizationId);
 
@@ -295,6 +317,29 @@ export class ProductService {
     query: QueryFeaturesInput,
     organizationId: string,
   ): Promise<PaginatedResult<FeatureEntity>> {
+    if (typeof this.featuresRepository.queryByOrganization === 'function') {
+      const result = await this.featuresRepository.queryByOrganization(
+        organizationId,
+        {
+          page: query.page,
+          limit: query.limit,
+          status: query.status,
+          priority: query.priority,
+          initiativeId: query.initiativeId,
+          search: query.search,
+        },
+      );
+
+      return {
+        items: result.items,
+        page: query.page,
+        limit: query.limit,
+        total: result.total,
+        totalPages:
+          result.total === 0 ? 0 : Math.ceil(result.total / query.limit),
+      };
+    }
+
     const features =
       await this.featuresRepository.listByOrganization(organizationId);
 
@@ -468,7 +513,8 @@ export class ProductService {
       feature.requestSources = this.extractRequestSources(linkedRequests);
 
       if (!this.prioritizationService) {
-        feature.priorityScore = this.legacyCalculatePriorityScore(linkedRequests);
+        feature.priorityScore =
+          this.legacyCalculatePriorityScore(linkedRequests);
 
         if (!feature.isPriorityManual) {
           feature.priority = this.mapLegacyScoreToProductPriority(
