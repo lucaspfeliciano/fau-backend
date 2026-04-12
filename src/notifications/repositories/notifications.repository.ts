@@ -24,4 +24,30 @@ export class NotificationsRepository {
       .lean<NotificationEntity[]>()
       .exec();
   }
+
+  async markAsRead(
+    notificationId: string,
+    organizationId: string,
+    readAt: string,
+  ): Promise<NotificationEntity | undefined> {
+    const doc = await this.notificationModel
+      .findOneAndUpdate(
+        {
+          id: notificationId,
+          organizationId,
+        },
+        {
+          $set: {
+            readAt,
+          },
+        },
+        {
+          new: true,
+        },
+      )
+      .lean<NotificationEntity>()
+      .exec();
+
+    return doc ?? undefined;
+  }
 }

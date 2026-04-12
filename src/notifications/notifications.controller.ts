@@ -13,6 +13,7 @@ import {
   ApiBody,
   ApiCreatedResponse,
   ApiForbiddenResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
@@ -83,6 +84,30 @@ export class NotificationsController {
   @ApiOkResponse({ description: 'Returns generated notifications.' })
   listNotifications(@CurrentUser() user: AuthenticatedUser) {
     return this.notificationsService.listNotifications(user.organizationId);
+  }
+
+  @Post('notifications/:id/read')
+  @Patch('notifications/:id/read')
+  @ApiOperation({ summary: 'Mark notification as read' })
+  @ApiParam({ name: 'id', description: 'Notification id' })
+  @ApiOkResponse({ description: 'Notification marked as read.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiNotFoundResponse({ description: 'Notification not found.' })
+  async markAsRead(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    try {
+      return await this.notificationsService.markNotificationAsRead(id, user);
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === 'NOTIFICATION_NOT_FOUND'
+      ) {
+        throw new NotFoundException('Notification not found.');
+      }
+      throw error;
+    }
   }
 
   @Post('releases')

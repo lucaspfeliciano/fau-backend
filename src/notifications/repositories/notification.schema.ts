@@ -26,6 +26,9 @@ export class NotificationModel {
   @Prop({ type: String, required: true, index: true })
   createdAt!: string;
 
+  @Prop({ type: String, index: true })
+  readAt?: string;
+
   @Prop({ type: Object, required: true })
   payload!: Record<string, unknown>;
 }

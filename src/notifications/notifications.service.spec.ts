@@ -43,7 +43,7 @@ describe('NotificationsService', () => {
 
     const notificationsRepositoryMock: Pick<
       NotificationsRepository,
-      'insert' | 'listByOrganization'
+      'insert' | 'listByOrganization' | 'markAsRead'
     > = {
       async insert(notification) {
         notificationsStore.unshift({ ...notification });
@@ -52,6 +52,25 @@ describe('NotificationsService', () => {
         return notificationsStore.filter(
           (notification) => notification.organizationId === organizationId,
         );
+      },
+      async markAsRead(notificationId, organizationId, readAt) {
+        const index = notificationsStore.findIndex(
+          (item) =>
+            item.id === notificationId &&
+            item.organizationId === organizationId,
+        );
+
+        if (index < 0) {
+          return undefined;
+        }
+
+        const updated: NotificationEntity = {
+          ...notificationsStore[index],
+          readAt,
+        };
+
+        notificationsStore[index] = updated;
+        return updated;
       },
     };
 
@@ -287,5 +306,40 @@ describe('NotificationsService', () => {
     expect(
       notifications.some((item) => item.eventName === 'release.created'),
     ).toBe(false);
+  });
+
+  it('should mark notification as read for organization', async () => {
+    domainEventsService.publish({
+      name: 'request.status_changed',
+      occurredAt: new Date().toISOString(),
+      organizationId: actor.organizationId,
+      actorId: actor.id,
+      payload: {
+        requestId: 'req-2',
+        from: 'Backlog',
+        to: 'Planned',
+      },
+    });
+
+    await flushDomainEvents();
+
+    const notifications = await notificationsService.listNotifications(
+      actor.organizationId,
+    );
+
+    const target = notifications[0];
+    expect(target).toBeDefined();
+
+    const marked = await notificationsService.markNotificationAsRead(
+      target!.id,
+      actor,
+    );
+
+    expect(marked.readAt).toBeDefined();
+
+    const after = await notificationsService.listNotifications(
+      actor.organizationId,
+    );
+    expect(after[0]?.readAt).toBeDefined();
   });
 });

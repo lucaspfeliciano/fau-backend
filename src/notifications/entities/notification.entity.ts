@@ -16,5 +16,6 @@ export interface NotificationEntity {
   title: string;
   message: string;
   createdAt: string;
+  readAt?: string;
   payload: Record<string, unknown>;
 }

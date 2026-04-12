@@ -22,6 +22,14 @@ import { NotificationPreferencesRepository } from './repositories/notification-p
 import { NotificationsRepository } from './repositories/notifications.repository';
 import { ReleasesRepository } from './repositories/releases.repository';
 
+interface NotificationsReadRepository {
+  markAsRead(
+    notificationId: string,
+    organizationId: string,
+    readAt: string,
+  ): Promise<NotificationEntity | undefined>;
+}
+
 @Injectable()
 export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   private static readonly AGGREGATION_PAGE_LIMIT = 100;
@@ -90,6 +98,26 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
 
   async listNotifications(organizationId: string) {
     return this.notificationsRepository.listByOrganization(organizationId);
+  }
+
+  async markNotificationAsRead(
+    notificationId: string,
+    actor: AuthenticatedUser,
+  ): Promise<NotificationEntity> {
+    const readAt = new Date().toISOString();
+    const readRepository = this
+      .notificationsRepository as NotificationsReadRepository;
+    const notification = await readRepository.markAsRead(
+      notificationId,
+      actor.organizationId,
+      readAt,
+    );
+
+    if (!notification) {
+      throw new Error('NOTIFICATION_NOT_FOUND');
+    }
+
+    return notification;
   }
 
   async createRelease(
