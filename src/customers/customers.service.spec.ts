@@ -3,6 +3,7 @@ import { CompaniesService } from '../companies/companies.service';
 import type { CompanyEntity } from '../companies/entities/company.entity';
 import { Role } from '../common/auth/role.enum';
 import { DomainEventsService } from '../common/events/domain-events.service';
+import { outboxRepositoryMockProvider } from '../common/events/outbox-repository.mock';
 import { CustomersService } from './customers.service';
 import type { AuthenticatedUser } from '../common/auth/authenticated-user.interface';
 import type { CustomerEntity } from './entities/customer.entity';
@@ -96,6 +97,7 @@ describe('CustomersService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CustomersService,
+        outboxRepositoryMockProvider,
         DomainEventsService,
         {
           provide: CompaniesService,

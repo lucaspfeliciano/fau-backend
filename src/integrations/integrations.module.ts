@@ -32,6 +32,16 @@ import {
   ExternalMappingModel,
   ExternalMappingSchema,
 } from './repositories/external-mapping.schema';
+import { StatusMappingsRepository } from './repositories/status-mappings.repository';
+import {
+  StatusMappingModel,
+  StatusMappingSchema,
+} from './repositories/status-mapping.schema';
+import { IntegrationLogsRepository } from './repositories/integration-logs.repository';
+import {
+  IntegrationLogModel,
+  IntegrationLogSchema,
+} from './repositories/integration-log.schema';
 import { IntegrationsService } from './integrations.service';
 
 @Module({
@@ -60,6 +70,14 @@ import { IntegrationsService } from './integrations.service';
         name: IntegrationCursorModel.name,
         schema: IntegrationCursorSchema,
       },
+      {
+        name: StatusMappingModel.name,
+        schema: StatusMappingSchema,
+      },
+      {
+        name: IntegrationLogModel.name,
+        schema: IntegrationLogSchema,
+      },
     ]),
   ],
   controllers: [IntegrationsController],
@@ -73,6 +91,8 @@ import { IntegrationsService } from './integrations.service';
     ExternalMappingsRepository,
     IntegrationMetricsRepository,
     IntegrationCursorsRepository,
+    StatusMappingsRepository,
+    IntegrationLogsRepository,
   ],
   exports: [IntegrationsService],
 })

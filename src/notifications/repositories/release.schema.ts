@@ -31,6 +31,15 @@ export class ReleaseModel {
 
   @Prop({ type: String, required: true, index: true })
   createdAt!: string;
+
+  @Prop({ type: String, required: true })
+  updatedAt!: string;
+
+  @Prop({ type: String, default: 'draft' })
+  status!: string;
+
+  @Prop({ type: String })
+  scheduledAt?: string;
 }
 
 export const ReleaseSchema = SchemaFactory.createForClass(ReleaseModel);

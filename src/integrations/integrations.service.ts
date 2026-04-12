@@ -36,6 +36,16 @@ import { ExternalMappingsRepository } from './repositories/external-mappings.rep
 import { IntegrationConfigsRepository } from './repositories/integration-configs.repository';
 import { IntegrationCursorsRepository } from './repositories/integration-cursors.repository';
 import { IntegrationMetricsRepository } from './repositories/integration-metrics.repository';
+import {
+  StatusMappingsRepository,
+  type StatusMappingEntity,
+} from './repositories/status-mappings.repository';
+import {
+  IntegrationLogsRepository,
+  type IntegrationLogEntity,
+} from './repositories/integration-logs.repository';
+import type { UpdateStatusMappingInput } from './dto/linear-status-mapping.schema';
+import type { QueryIntegrationLogsInput } from './dto/query-integration-logs.schema';
 
 export interface IntegrationMetrics {
   success: number;
@@ -186,6 +196,8 @@ export class IntegrationsService {
     private readonly externalMappingsRepository: ExternalMappingsRepository,
     private readonly integrationMetricsRepository: IntegrationMetricsRepository,
     private readonly integrationCursorsRepository: IntegrationCursorsRepository,
+    private readonly statusMappingsRepository: StatusMappingsRepository,
+    private readonly integrationLogsRepository: IntegrationLogsRepository,
   ) {}
 
   async configureFireflies(
@@ -1030,7 +1042,7 @@ export class IntegrationsService {
         continue;
       }
 
-      const provider = (event.payload as Record<string, unknown>).provider;
+      const provider = event.payload.provider;
       if (provider === IntegrationProvider.Slack) {
         failuresByProvider.slack += 1;
       } else if (provider === IntegrationProvider.HubSpot) {
@@ -1445,5 +1457,91 @@ export class IntegrationsService {
     provider: IntegrationProvider,
   ): Promise<IntegrationMetrics> {
     return this.integrationMetricsRepository.get(organizationId, provider);
+  }
+
+  async getLinearStatusMapping(organizationId: string) {
+    const mapping =
+      await this.statusMappingsRepository.findByOrganizationAndProvider(
+        organizationId,
+        'linear',
+      );
+
+    if (!mapping) {
+      return {
+        items: [],
+        updatedAt: null,
+      };
+    }
+
+    return {
+      items: mapping.items,
+      updatedAt: mapping.updatedAt,
+    };
+  }
+
+  async saveLinearStatusMapping(
+    input: UpdateStatusMappingInput,
+    actor: AuthenticatedUser,
+  ) {
+    const now = new Date().toISOString();
+
+    const mapping: StatusMappingEntity = {
+      organizationId: actor.organizationId,
+      provider: 'linear',
+      items: input.items,
+      updatedAt: now,
+      updatedBy: actor.id,
+    };
+
+    await this.statusMappingsRepository.upsert(mapping);
+
+    return {
+      saved: true,
+      updatedAt: now,
+    };
+  }
+
+  async listIntegrationLogs(
+    organizationId: string,
+    query: QueryIntegrationLogsInput,
+  ) {
+    const result = await this.integrationLogsRepository.list(organizationId, {
+      page: query.page,
+      limit: query.limit,
+      provider: query.provider,
+      status: query.status,
+      startDate: query.startDate,
+      endDate: query.endDate,
+    });
+
+    return {
+      items: result.items,
+      total: result.total,
+      page: query.page,
+      limit: query.limit,
+    };
+  }
+
+  async retryIntegrationLog(logId: string, actor: AuthenticatedUser) {
+    const log = await this.integrationLogsRepository.findById(
+      logId,
+      actor.organizationId,
+    );
+
+    if (!log) {
+      throw new Error('LOG_NOT_FOUND');
+    }
+
+    log.status = 'retrying';
+    log.retryCount += 1;
+    log.occurredAt = new Date().toISOString();
+    await this.integrationLogsRepository.update(log);
+
+    return {
+      logId: log.id,
+      status: 'retrying',
+      retryCount: log.retryCount,
+      retriedAt: log.occurredAt,
+    };
   }
 }

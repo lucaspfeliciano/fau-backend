@@ -1,8 +1,18 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiBody,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
@@ -24,6 +34,10 @@ import {
   NotificationPreferencesSchema,
   type NotificationPreferencesInput,
 } from './dto/notification-preferences.schema';
+import {
+  UpdateReleaseSchema,
+  type UpdateReleaseInput,
+} from './dto/update-release.schema';
 import { NotificationsService } from './notifications.service';
 
 @ApiTags('Notifications')
@@ -96,6 +110,37 @@ export class NotificationsController {
   @ApiOkResponse({ description: 'Returns releases list.' })
   listReleases(@CurrentUser() user: AuthenticatedUser) {
     return this.notificationsService.listReleases(user.organizationId);
+  }
+
+  @Patch('releases/:id')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Update release by id' })
+  @ApiParam({ name: 'id', description: 'Release id' })
+  @ApiBody({
+    schema: {
+      example: {
+        title: 'Updated release title',
+        status: 'scheduled',
+        scheduledAt: '2026-05-01T00:00:00.000Z',
+      },
+    },
+  })
+  @ApiOkResponse({ description: 'Release updated successfully.' })
+  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async updateRelease(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(UpdateReleaseSchema)) body: UpdateReleaseInput,
+  ) {
+    try {
+      return await this.notificationsService.updateRelease(id, body, user);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'RELEASE_NOT_FOUND') {
+        throw new NotFoundException('Release not found.');
+      }
+      throw error;
+    }
   }
 
   @Get('roadmap/overview')

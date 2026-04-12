@@ -1,6 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DomainEventsService } from '../common/events/domain-events.service';
+import { outboxRepositoryMockProvider } from '../common/events/outbox-repository.mock';
 import { Role } from '../common/auth/role.enum';
 import type { AuthenticatedUser } from '../common/auth/authenticated-user.interface';
 import { EngineeringService } from '../engineering/engineering.service';
@@ -220,6 +221,7 @@ describe('RoadmapService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RoadmapService,
+        outboxRepositoryMockProvider,
         DomainEventsService,
         {
           provide: RoadmapViewsRepository,

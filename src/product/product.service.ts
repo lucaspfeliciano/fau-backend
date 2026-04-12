@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import type { AuthenticatedUser } from '../common/auth/authenticated-user.interface';
 import { DomainEventsService } from '../common/events/domain-events.service';
@@ -6,6 +6,7 @@ import { CompaniesService } from '../companies/companies.service';
 import { CustomersService } from '../customers/customers.service';
 import type { RequestEntity } from '../requests/entities/request.entity';
 import { RequestStatus } from '../requests/entities/request-status.enum';
+import { PrioritizationService } from '../prioritization/prioritization.service';
 import { RequestsService } from '../requests/requests.service';
 import type { CreateFeatureInput } from './dto/create-feature.schema';
 import type { CreateInitiativeInput } from './dto/create-initiative.schema';
@@ -48,6 +49,7 @@ export class ProductService {
     private readonly companiesService: CompaniesService,
     private readonly initiativesRepository: InitiativesRepository,
     private readonly featuresRepository: FeaturesRepository,
+    @Optional() private readonly prioritizationService?: PrioritizationService,
   ) {}
 
   async createInitiative(
@@ -213,12 +215,10 @@ export class ProductService {
       initiativeId = initiative.id;
     }
 
-    const priorityScore = this.calculatePriorityScore(requests);
     const isPriorityManual = input.priority !== undefined;
     const priority =
-      input.priority !== undefined
-        ? input.priority
-        : this.mapScoreToPriority(priorityScore);
+      input.priority !== undefined ? input.priority : ProductPriority.Medium;
+    const priorityScore = 0;
     const status = input.status ?? FeatureStatus.Discovery;
 
     const feature: FeatureEntity = {
@@ -248,6 +248,20 @@ export class ProductService {
 
     await this.featuresRepository.insert(feature);
 
+    if (this.prioritizationService) {
+      await this.prioritizationService.syncAutomaticFeatureScores(
+        actor.organizationId,
+      );
+    } else {
+      feature.priorityScore = this.legacyCalculatePriorityScore(requests);
+      if (!feature.isPriorityManual) {
+        feature.priority = this.mapLegacyScoreToProductPriority(
+          feature.priorityScore,
+        );
+      }
+      await this.featuresRepository.update(feature);
+    }
+
     if (initiativeId) {
       await this.attachFeatureToInitiative(
         initiativeId,
@@ -256,20 +270,25 @@ export class ProductService {
       );
     }
 
+    const created = await this.findFeatureByIdOrFail(
+      feature.id,
+      actor.organizationId,
+    );
+
     this.domainEventsService.publish({
       name: 'product.feature_created',
       occurredAt: now,
       actorId: actor.id,
       organizationId: actor.organizationId,
       payload: {
-        featureId: feature.id,
-        status: feature.status,
-        priority: feature.priority,
-        requestIds: feature.requestIds,
+        featureId: created.id,
+        status: created.status,
+        priority: created.priority,
+        requestIds: created.requestIds,
       },
     });
 
-    return feature;
+    return created;
   }
 
   async listFeatures(
@@ -343,10 +362,15 @@ export class ProductService {
 
       feature.requestIds = requestIds;
       feature.requestSources = this.extractRequestSources(requests);
-      feature.priorityScore = this.calculatePriorityScore(requests);
 
-      if (!feature.isPriorityManual) {
-        feature.priority = this.mapScoreToPriority(feature.priorityScore);
+      if (!this.prioritizationService) {
+        feature.priorityScore = this.legacyCalculatePriorityScore(requests);
+
+        if (!feature.isPriorityManual) {
+          feature.priority = this.mapLegacyScoreToProductPriority(
+            feature.priorityScore,
+          );
+        }
       }
     }
 
@@ -401,6 +425,12 @@ export class ProductService {
     feature.updatedAt = new Date().toISOString();
     await this.featuresRepository.update(feature);
 
+    if (this.prioritizationService && input.requestIds !== undefined) {
+      await this.prioritizationService.syncAutomaticFeatureScores(
+        actor.organizationId,
+      );
+    }
+
     this.domainEventsService.publish({
       name: 'product.feature_updated',
       occurredAt: feature.updatedAt,
@@ -436,14 +466,25 @@ export class ProductService {
         ),
       );
       feature.requestSources = this.extractRequestSources(linkedRequests);
-      feature.priorityScore = this.calculatePriorityScore(linkedRequests);
 
-      if (!feature.isPriorityManual) {
-        feature.priority = this.mapScoreToPriority(feature.priorityScore);
+      if (!this.prioritizationService) {
+        feature.priorityScore = this.legacyCalculatePriorityScore(linkedRequests);
+
+        if (!feature.isPriorityManual) {
+          feature.priority = this.mapLegacyScoreToProductPriority(
+            feature.priorityScore,
+          );
+        }
       }
 
       feature.updatedAt = new Date().toISOString();
       await this.featuresRepository.update(feature);
+
+      if (this.prioritizationService) {
+        await this.prioritizationService.syncAutomaticFeatureScores(
+          actor.organizationId,
+        );
+      }
 
       this.domainEventsService.publish({
         name: 'product.feature_request_linked',
@@ -654,7 +695,8 @@ export class ProductService {
     );
   }
 
-  private calculatePriorityScore(requests: RequestEntity[]): number {
+  /** @deprecated Prefer PrioritizationService; kept for unit tests without that module */
+  private legacyCalculatePriorityScore(requests: RequestEntity[]): number {
     if (requests.length === 0) {
       return 0;
     }
@@ -694,7 +736,7 @@ export class ProductService {
     );
   }
 
-  private mapScoreToPriority(score: number): ProductPriority {
+  private mapLegacyScoreToProductPriority(score: number): ProductPriority {
     if (score >= 50) {
       return ProductPriority.Critical;
     }

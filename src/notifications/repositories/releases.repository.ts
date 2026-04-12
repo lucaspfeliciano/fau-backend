@@ -15,6 +15,27 @@ export class ReleasesRepository {
     await this.releaseModel.create(release);
   }
 
+  async findById(
+    id: string,
+    organizationId: string,
+  ): Promise<ReleaseEntity | undefined> {
+    const doc = await this.releaseModel
+      .findOne({ id, organizationId })
+      .lean<ReleaseEntity>()
+      .exec();
+
+    return doc ?? undefined;
+  }
+
+  async update(release: ReleaseEntity): Promise<void> {
+    await this.releaseModel
+      .updateOne(
+        { id: release.id, organizationId: release.organizationId },
+        { $set: release },
+      )
+      .exec();
+  }
+
   async listByOrganization(organizationId: string): Promise<ReleaseEntity[]> {
     return this.releaseModel
       .find({ organizationId })

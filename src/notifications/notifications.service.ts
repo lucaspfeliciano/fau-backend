@@ -6,10 +6,13 @@ import { DomainEventsService } from '../common/events/domain-events.service';
 import { CompaniesService } from '../companies/companies.service';
 import { CustomersService } from '../customers/customers.service';
 import { EngineeringService } from '../engineering/engineering.service';
+import { SprintStatus } from '../engineering/entities/sprint-status.enum';
+import { FeatureStatus } from '../product/entities/feature-status.enum';
 import { ProductService } from '../product/product.service';
 import { RequestsService } from '../requests/requests.service';
 import type { CreateReleaseInput } from './dto/create-release.schema';
 import type { NotificationPreferencesInput } from './dto/notification-preferences.schema';
+import type { UpdateReleaseInput } from './dto/update-release.schema';
 import type {
   NotificationEntity,
   NotificationPreferenceEntity,
@@ -93,7 +96,10 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     actor: AuthenticatedUser,
   ): Promise<ReleaseEntity> {
     for (const featureId of input.featureIds ?? []) {
-      await this.productService.findFeatureById(featureId, actor.organizationId);
+      await this.productService.findFeatureById(
+        featureId,
+        actor.organizationId,
+      );
     }
 
     for (const sprintId of input.sprintIds ?? []) {
@@ -103,16 +109,19 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       );
     }
 
+    const createdAt = new Date().toISOString();
     const release: ReleaseEntity = {
       id: randomUUID(),
       version: input.version,
       title: input.title,
       notes: input.notes,
+      status: 'draft',
       featureIds: input.featureIds ?? [],
       sprintIds: input.sprintIds ?? [],
       organizationId: actor.organizationId,
       createdBy: actor.id,
-      createdAt: new Date().toISOString(),
+      createdAt,
+      updatedAt: createdAt,
     };
 
     await this.releasesRepository.insert(release);
@@ -135,6 +144,56 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
 
   async listReleases(organizationId: string): Promise<ReleaseEntity[]> {
     return this.releasesRepository.listByOrganization(organizationId);
+  }
+
+  async updateRelease(
+    id: string,
+    input: UpdateReleaseInput,
+    actor: AuthenticatedUser,
+  ): Promise<ReleaseEntity> {
+    const release = await this.releasesRepository.findById(
+      id,
+      actor.organizationId,
+    );
+
+    if (!release) {
+      throw new Error('RELEASE_NOT_FOUND');
+    }
+
+    if (input.title !== undefined) {
+      release.title = input.title;
+    }
+
+    if (input.notes !== undefined) {
+      release.notes = input.notes;
+    }
+
+    if (input.status !== undefined) {
+      release.status = input.status;
+      if (input.status !== 'scheduled' && input.scheduledAt === undefined) {
+        release.scheduledAt = undefined;
+      }
+    }
+
+    if (input.scheduledAt !== undefined) {
+      release.scheduledAt = input.scheduledAt;
+    }
+
+    release.updatedAt = new Date().toISOString();
+    await this.releasesRepository.update(release);
+
+    this.domainEventsService.publish({
+      name: 'release.updated',
+      occurredAt: release.updatedAt,
+      actorId: actor.id,
+      organizationId: actor.organizationId,
+      payload: {
+        releaseId: release.id,
+        status: release.status,
+      },
+    });
+
+    return release;
   }
 
   async getRoadmapOverview(organizationId: string) {
@@ -193,15 +252,26 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         releases: upcomingReleases.length,
       },
       featureStatusBreakdown: {
-        discovery: features.filter((item) => item.status === 'Discovery').length,
-        planned: features.filter((item) => item.status === 'Planned').length,
-        inProgress: features.filter((item) => item.status === 'In Progress').length,
-        done: features.filter((item) => item.status === 'Done').length,
+        discovery: features.filter(
+          (item) => item.status === FeatureStatus.Discovery,
+        ).length,
+        planned: features.filter(
+          (item) => item.status === FeatureStatus.Planned,
+        ).length,
+        inProgress: features.filter(
+          (item) => item.status === FeatureStatus.InProgress,
+        ).length,
+        done: features.filter((item) => item.status === FeatureStatus.Done)
+          .length,
       },
       sprintStatusBreakdown: {
-        planned: sprints.filter((item) => item.status === 'Planned').length,
-        active: sprints.filter((item) => item.status === 'Active').length,
-        completed: sprints.filter((item) => item.status === 'Completed').length,
+        planned: sprints.filter((item) => item.status === SprintStatus.Planned)
+          .length,
+        active: sprints.filter((item) => item.status === SprintStatus.Active)
+          .length,
+        completed: sprints.filter(
+          (item) => item.status === SprintStatus.Completed,
+        ).length,
       },
       releases: upcomingReleases,
       recentNotifications: (await this.listNotifications(organizationId)).slice(
@@ -318,7 +388,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       title: this.mapTitle(event.name),
       message: this.mapMessage(event),
       createdAt: event.occurredAt,
-      payload: event.payload as Record<string, unknown>,
+      payload: event.payload,
     };
 
     await this.notificationsRepository.insert(notification);
@@ -411,7 +481,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private mapMessage(event: DomainEvent): string {
-    const payload = event.payload as Record<string, unknown>;
+    const payload = event.payload;
 
     if (event.name === 'request.status_changed') {
       return `Request ${String(payload.requestId)} moved from ${String(payload.from)} to ${String(payload.to)}.`;

@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { CompaniesService } from '../companies/companies.service';
 import type { CompanyEntity } from '../companies/entities/company.entity';
 import { DomainEventsService } from '../common/events/domain-events.service';
+import { outboxRepositoryMockProvider } from '../common/events/outbox-repository.mock';
 import { CustomersService } from '../customers/customers.service';
 import type { CustomerEntity } from '../customers/entities/customer.entity';
 import { Role } from '../common/auth/role.enum';
@@ -101,6 +102,7 @@ describe('RequestsService', () => {
           provide: REQUESTS_REPOSITORY,
           useExisting: TestingRequestsRepository,
         },
+        outboxRepositoryMockProvider,
         DomainEventsService,
         {
           provide: CompaniesService,

@@ -1,17 +1,26 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { DomainEventsService } from '../common/events/domain-events.service';
 import type { AuthenticatedUser } from '../common/auth/authenticated-user.interface';
 import { Role } from '../common/auth/role.enum';
-import { ProductService } from '../product/product.service';
-import { RequestsService } from '../requests/requests.service';
-import { TestingRequestsRepository } from '../requests/repositories/testing-requests.repository';
-import { REQUESTS_REPOSITORY } from '../requests/repositories/requests-repository.interface';
-import { CustomersService } from '../customers/customers.service';
+import { DomainEventsService } from '../common/events/domain-events.service';
+import { outboxRepositoryMockProvider } from '../common/events/outbox-repository.mock';
 import { CompaniesService } from '../companies/companies.service';
-import { EngineeringService } from './engineering.service';
+import { CustomersService } from '../customers/customers.service';
+import { FeatureStatus } from '../product/entities/feature-status.enum';
+import type { FeatureEntity } from '../product/entities/feature.entity';
+import { FeaturesRepository } from '../product/repositories/features.repository';
+import { InitiativesRepository } from '../product/repositories/initiatives.repository';
+import { ProductService } from '../product/product.service';
+import { REQUESTS_REPOSITORY } from '../requests/repositories/requests-repository.interface';
+import { TestingRequestsRepository } from '../requests/repositories/testing-requests.repository';
+import { RequestsService } from '../requests/requests.service';
 import { SprintStatus } from './entities/sprint-status.enum';
+import type { SprintEntity } from './entities/sprint.entity';
 import { TaskStatus } from './entities/task-status.enum';
+import type { TaskEntity } from './entities/task.entity';
+import { SprintsRepository } from './repositories/sprints.repository';
+import { TasksRepository } from './repositories/tasks.repository';
+import { EngineeringService } from './engineering.service';
 
 describe('EngineeringService', () => {
   let engineeringService: EngineeringService;
@@ -27,10 +36,113 @@ describe('EngineeringService', () => {
   };
 
   beforeEach(async () => {
+    const featuresStore = new Map<string, FeatureEntity>();
+    const sprintsStore = new Map<string, SprintEntity>();
+    const tasksStore = new Map<string, TaskEntity>();
+
+    const featuresRepositoryMock: Pick<
+      FeaturesRepository,
+      'insert' | 'update' | 'findById' | 'listByOrganization'
+    > = {
+      async insert(feature) {
+        featuresStore.set(feature.id, { ...feature });
+      },
+      async update(feature) {
+        featuresStore.set(feature.id, { ...feature });
+      },
+      async findById(id, organizationId) {
+        const feature = featuresStore.get(id);
+        if (!feature || feature.organizationId !== organizationId) {
+          return undefined;
+        }
+        return feature;
+      },
+      async listByOrganization(organizationId) {
+        return [...featuresStore.values()].filter(
+          (feature) => feature.organizationId === organizationId,
+        );
+      },
+    };
+
+    const initiativesRepositoryMock: Pick<
+      InitiativesRepository,
+      'insert' | 'update' | 'findById' | 'listByOrganization'
+    > = {
+      async insert() {},
+      async update() {},
+      async findById() {
+        return undefined;
+      },
+      async listByOrganization() {
+        return [];
+      },
+    };
+
+    const sprintsRepositoryMock: Pick<
+      SprintsRepository,
+      'insert' | 'update' | 'findById' | 'listByOrganization'
+    > = {
+      async insert(sprint) {
+        sprintsStore.set(sprint.id, { ...sprint });
+      },
+      async update(sprint) {
+        sprintsStore.set(sprint.id, { ...sprint });
+      },
+      async findById(id, organizationId) {
+        const sprint = sprintsStore.get(id);
+        if (!sprint || sprint.organizationId !== organizationId) {
+          return undefined;
+        }
+        return sprint;
+      },
+      async listByOrganization(organizationId) {
+        return [...sprintsStore.values()].filter(
+          (sprint) => sprint.organizationId === organizationId,
+        );
+      },
+    };
+
+    const tasksRepositoryMock: Pick<
+      TasksRepository,
+      'insert' | 'update' | 'findById' | 'listByOrganization'
+    > = {
+      async insert(task) {
+        tasksStore.set(task.id, { ...task });
+      },
+      async update(task) {
+        tasksStore.set(task.id, { ...task });
+      },
+      async findById(id, organizationId) {
+        const task = tasksStore.get(id);
+        if (!task || task.organizationId !== organizationId) {
+          return undefined;
+        }
+        return task;
+      },
+      async listByOrganization(organizationId) {
+        return [...tasksStore.values()].filter(
+          (task) => task.organizationId === organizationId,
+        );
+      },
+    };
+
+    const customersServiceMock: Pick<CustomersService, 'findOneById'> = {
+      async findOneById() {
+        throw new NotFoundException('Customer not found.');
+      },
+    };
+
+    const companiesServiceMock: Pick<CompaniesService, 'findOneById'> = {
+      async findOneById() {
+        throw new NotFoundException('Company not found.');
+      },
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EngineeringService,
         ProductService,
+        outboxRepositoryMockProvider,
         DomainEventsService,
         RequestsService,
         TestingRequestsRepository,
@@ -38,8 +150,12 @@ describe('EngineeringService', () => {
           provide: REQUESTS_REPOSITORY,
           useExisting: TestingRequestsRepository,
         },
-        CustomersService,
-        CompaniesService,
+        { provide: FeaturesRepository, useValue: featuresRepositoryMock },
+        { provide: InitiativesRepository, useValue: initiativesRepositoryMock },
+        { provide: SprintsRepository, useValue: sprintsRepositoryMock },
+        { provide: TasksRepository, useValue: tasksRepositoryMock },
+        { provide: CustomersService, useValue: customersServiceMock },
+        { provide: CompaniesService, useValue: companiesServiceMock },
       ],
     }).compile();
 
@@ -48,8 +164,8 @@ describe('EngineeringService', () => {
     requestsService = module.get<RequestsService>(RequestsService);
   });
 
-  it('should require valid feature when creating task', () => {
-    expect(() =>
+  it('should require valid feature when creating task', async () => {
+    await expect(
       engineeringService.createTask(
         {
           title: 'Task without feature',
@@ -58,11 +174,11 @@ describe('EngineeringService', () => {
         },
         actor,
       ),
-    ).toThrow('Feature not found.');
+    ).rejects.toThrow('Feature not found.');
   });
 
-  it('should prevent sprint completion with open tasks without closeReason', () => {
-    const productRequest = requestsService.create(
+  it('should prevent sprint completion with open tasks without closeReason', async () => {
+    const productRequest = await requestsService.create(
       {
         title: 'Need onboarding changes',
         description: 'Customers ask for better onboarding.',
@@ -70,7 +186,7 @@ describe('EngineeringService', () => {
       actor,
     );
 
-    const feature = productService.createFeature(
+    const feature = await productService.createFeature(
       {
         title: 'Onboarding improvements',
         description: 'Deliver guided setup.',
@@ -79,7 +195,7 @@ describe('EngineeringService', () => {
       actor,
     );
 
-    const sprint = engineeringService.createSprint(
+    const sprint = await engineeringService.createSprint(
       {
         name: 'Sprint A',
         startDate: '2026-04-10T00:00:00.000Z',
@@ -88,7 +204,7 @@ describe('EngineeringService', () => {
       actor,
     );
 
-    engineeringService.createTask(
+    await engineeringService.createTask(
       {
         title: 'Task A',
         description: 'Pending task in sprint.',
@@ -98,7 +214,7 @@ describe('EngineeringService', () => {
       actor,
     );
 
-    expect(() =>
+    await expect(
       engineeringService.updateSprint(
         sprint.id,
         {
@@ -106,11 +222,11 @@ describe('EngineeringService', () => {
         },
         actor,
       ),
-    ).toThrow(BadRequestException);
+    ).rejects.toThrow(BadRequestException);
   });
 
-  it('should update feature status automatically based on task status', () => {
-    const productRequest = requestsService.create(
+  it('should update feature status automatically based on task status', async () => {
+    const productRequest = await requestsService.create(
       {
         title: 'Need reporting export',
         description: 'CSV export requested by customers.',
@@ -118,7 +234,7 @@ describe('EngineeringService', () => {
       actor,
     );
 
-    const feature = productService.createFeature(
+    const feature = await productService.createFeature(
       {
         title: 'Reporting export',
         description: 'Export capabilities for reports.',
@@ -127,7 +243,7 @@ describe('EngineeringService', () => {
       actor,
     );
 
-    const task = engineeringService.createTask(
+    const task = await engineeringService.createTask(
       {
         title: 'Implement export endpoint',
         description: 'Create endpoint and payload.',
@@ -136,13 +252,13 @@ describe('EngineeringService', () => {
       actor,
     );
 
-    const afterCreate = productService.findFeatureById(
+    const afterCreate = await productService.findFeatureById(
       feature.id,
       actor.organizationId,
     );
-    expect(afterCreate.status).toBe('Planned');
+    expect(afterCreate.status).toBe(FeatureStatus.Planned);
 
-    engineeringService.updateTask(
+    await engineeringService.updateTask(
       task.id,
       {
         status: TaskStatus.InProgress,
@@ -150,13 +266,13 @@ describe('EngineeringService', () => {
       actor,
     );
 
-    const afterInProgress = productService.findFeatureById(
+    const afterInProgress = await productService.findFeatureById(
       feature.id,
       actor.organizationId,
     );
-    expect(afterInProgress.status).toBe('In Progress');
+    expect(afterInProgress.status).toBe(FeatureStatus.InProgress);
 
-    engineeringService.updateTask(
+    await engineeringService.updateTask(
       task.id,
       {
         status: TaskStatus.Done,
@@ -164,10 +280,10 @@ describe('EngineeringService', () => {
       actor,
     );
 
-    const afterDone = productService.findFeatureById(
+    const afterDone = await productService.findFeatureById(
       feature.id,
       actor.organizationId,
     );
-    expect(afterDone.status).toBe('Done');
+    expect(afterDone.status).toBe(FeatureStatus.Done);
   });
 });

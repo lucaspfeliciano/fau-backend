@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Post,
+  Put,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -56,6 +66,14 @@ import {
   SlackConfigSchema,
   type SlackConfigInput,
 } from './dto/slack-config.schema';
+import {
+  UpdateStatusMappingSchema,
+  type UpdateStatusMappingInput,
+} from './dto/linear-status-mapping.schema';
+import {
+  QueryIntegrationLogsSchema,
+  type QueryIntegrationLogsInput,
+} from './dto/query-integration-logs.schema';
 import { IntegrationsService } from './integrations.service';
 
 @ApiTags('Integrations')
@@ -342,5 +360,75 @@ export class IntegrationsController {
     return (await this.integrationsService.getOperationalDashboard(
       user.organizationId,
     )) as Record<string, unknown>;
+  }
+
+  @Get('linear/status-mapping')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({
+    summary: 'Get Linear status mapping for current organization',
+  })
+  @ApiOkResponse({ description: 'Returns current status mapping.' })
+  getLinearStatusMapping(@CurrentUser() user: AuthenticatedUser) {
+    return this.integrationsService.getLinearStatusMapping(user.organizationId);
+  }
+
+  @Put('linear/status-mapping')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Save Linear status mapping' })
+  @ApiBody({
+    schema: {
+      example: {
+        items: [
+          { linearStatus: 'Todo', internalStatus: 'Todo', enabled: true },
+          {
+            linearStatus: 'In Progress',
+            internalStatus: 'In Progress',
+            enabled: true,
+          },
+          { linearStatus: 'Done', internalStatus: 'Done', enabled: true },
+        ],
+      },
+    },
+  })
+  @ApiOkResponse({ description: 'Status mapping saved.' })
+  saveLinearStatusMapping(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body(new ZodValidationPipe(UpdateStatusMappingSchema))
+    body: UpdateStatusMappingInput,
+  ) {
+    return this.integrationsService.saveLinearStatusMapping(body, user);
+  }
+
+  @Get('logs')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'List integration sync logs' })
+  @ApiOkResponse({ description: 'Returns paginated integration logs.' })
+  listIntegrationLogs(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query(new ZodValidationPipe(QueryIntegrationLogsSchema))
+    query: QueryIntegrationLogsInput,
+  ) {
+    return this.integrationsService.listIntegrationLogs(
+      user.organizationId,
+      query,
+    );
+  }
+
+  @Post('logs/:logId/retry')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Retry failed integration sync' })
+  @ApiCreatedResponse({ description: 'Retry triggered.' })
+  async retryIntegrationLog(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('logId') logId: string,
+  ) {
+    try {
+      return await this.integrationsService.retryIntegrationLog(logId, user);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'LOG_NOT_FOUND') {
+        throw new NotFoundException('Integration log not found.');
+      }
+      throw error;
+    }
   }
 }

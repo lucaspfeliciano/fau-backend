@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { randomUUID } from 'crypto';
 import { DomainEventsService } from '../common/events/domain-events.service';
+import { outboxRepositoryMockProvider } from '../common/events/outbox-repository.mock';
 import type { AuthenticatedUser } from '../common/auth/authenticated-user.interface';
 import { Role } from '../common/auth/role.enum';
 import { RequestSourceType } from '../requests/entities/request-source-type.enum';
@@ -86,6 +87,7 @@ describe('AiProcessingService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AiProcessingService,
+        outboxRepositoryMockProvider,
         DomainEventsService,
         {
           provide: RequestsService,
@@ -246,7 +248,7 @@ describe('AiProcessingService', () => {
     expect(pendingQueue.total).toBe(1);
 
     const approved = await aiProcessingService.approveReviewQueueItem(
-      pendingQueue.items[0]!.id,
+      pendingQueue.items[0].id,
       actor,
     );
 
@@ -262,7 +264,7 @@ describe('AiProcessingService', () => {
     );
 
     const rejected = await aiProcessingService.rejectReviewQueueItem(
-      secondQueuedImport.items[0]!.queueItemId!,
+      secondQueuedImport.items[0].queueItemId!,
       actor,
     );
 
@@ -308,7 +310,7 @@ describe('AiProcessingService', () => {
 
     const batch = await aiProcessingService.approveReviewQueueBatch(
       {
-        itemIds: [first.items[0]!.queueItemId!, second.items[0]!.queueItemId!],
+        itemIds: [first.items[0].queueItemId!, second.items[0].queueItemId!],
       },
       actor,
     );

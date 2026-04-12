@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { Role } from '../common/auth/role.enum';
 import { DomainEventsService } from '../common/events/domain-events.service';
+import { outboxRepositoryMockProvider } from '../common/events/outbox-repository.mock';
 import { CompaniesService } from './companies.service';
 import type { AuthenticatedUser } from '../common/auth/authenticated-user.interface';
 import type { CompanyEntity } from './entities/company.entity';
@@ -50,6 +51,7 @@ describe('CompaniesService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CompaniesService,
+        outboxRepositoryMockProvider,
         DomainEventsService,
         {
           provide: CompaniesRepository,

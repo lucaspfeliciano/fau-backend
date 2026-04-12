@@ -217,6 +217,80 @@ export class UsersService {
     };
   }
 
+  async listByOrganization(
+    organizationId: string,
+    options: {
+      page: number;
+      limit: number;
+      search?: string;
+      role?: string;
+    },
+  ) {
+    const result = await this.usersRepository.listByOrganization(
+      organizationId,
+      options,
+    );
+
+    const items = result.items.map((user) => {
+      const membership = user.memberships.find(
+        (m) => m.organizationId === organizationId,
+      );
+
+      return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: membership?.role ?? null,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      };
+    });
+
+    return {
+      items,
+      total: result.total,
+      page: options.page,
+      limit: options.limit,
+    };
+  }
+
+  async updateMembershipRole(
+    targetUserId: string,
+    organizationId: string,
+    newRole: Role,
+  ): Promise<{ id: string; role: Role; updatedAt: string }> {
+    const targetUser = await this.findById(targetUserId);
+    if (!targetUser) {
+      throw new Error('USER_NOT_FOUND');
+    }
+
+    const membership = targetUser.memberships.find(
+      (m) => m.organizationId === organizationId,
+    );
+
+    if (!membership) {
+      throw new Error('USER_NOT_IN_ORGANIZATION');
+    }
+
+    if (membership.role === Role.Admin && newRole !== Role.Admin) {
+      const adminCount =
+        await this.usersRepository.countAdminsInOrganization(organizationId);
+      if (adminCount <= 1) {
+        throw new Error('CANNOT_REMOVE_LAST_ADMIN');
+      }
+    }
+
+    membership.role = newRole;
+    this.touch(targetUser);
+    await this.usersRepository.update(targetUser);
+
+    return {
+      id: targetUser.id,
+      role: newRole,
+      updatedAt: targetUser.updatedAt,
+    };
+  }
+
   private touch(user: UserEntity): void {
     user.updatedAt = new Date().toISOString();
   }

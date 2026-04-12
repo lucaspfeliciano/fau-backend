@@ -68,4 +68,58 @@ export class UsersRepository {
       )
       .exec();
   }
+
+  async listByOrganization(
+    organizationId: string,
+    options: {
+      page: number;
+      limit: number;
+      search?: string;
+      role?: string;
+    },
+  ): Promise<{ items: UserEntity[]; total: number }> {
+    const filter: Record<string, unknown> = {
+      'memberships.organizationId': organizationId,
+    };
+
+    if (options.search) {
+      const regex = { $regex: options.search, $options: 'i' };
+      filter.$or = [{ name: regex }, { email: regex }];
+    }
+
+    if (options.role) {
+      filter.memberships = {
+        $elemMatch: {
+          organizationId,
+          role: options.role,
+        },
+      };
+    }
+
+    const total = await this.userModel.countDocuments(filter).exec();
+
+    const docs = await this.userModel
+      .find(filter)
+      .select({ _id: 0, passwordHash: 0 })
+      .sort({ createdAt: -1 })
+      .skip((options.page - 1) * options.limit)
+      .limit(options.limit)
+      .lean<UserEntity[]>()
+      .exec();
+
+    return { items: docs, total };
+  }
+
+  async countAdminsInOrganization(organizationId: string): Promise<number> {
+    return this.userModel
+      .countDocuments({
+        memberships: {
+          $elemMatch: {
+            organizationId,
+            role: 'Admin',
+          },
+        },
+      })
+      .exec();
+  }
 }

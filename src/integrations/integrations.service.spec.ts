@@ -3,6 +3,7 @@ import { createHmac, randomUUID } from 'crypto';
 import type { AuthenticatedUser } from '../common/auth/authenticated-user.interface';
 import { Role } from '../common/auth/role.enum';
 import { DomainEventsService } from '../common/events/domain-events.service';
+import { outboxRepositoryMockProvider } from '../common/events/outbox-repository.mock';
 import { AiProcessingService } from '../ai-processing/ai-processing.service';
 import { CompaniesService } from '../companies/companies.service';
 import { CustomersService } from '../customers/customers.service';
@@ -13,7 +14,9 @@ import { IntegrationProvider } from './entities/integration-provider.enum';
 import { ExternalMappingsRepository } from './repositories/external-mappings.repository';
 import { IntegrationConfigsRepository } from './repositories/integration-configs.repository';
 import { IntegrationCursorsRepository } from './repositories/integration-cursors.repository';
+import { IntegrationLogsRepository } from './repositories/integration-logs.repository';
 import { IntegrationMetricsRepository } from './repositories/integration-metrics.repository';
+import { StatusMappingsRepository } from './repositories/status-mappings.repository';
 import { FirefliesConnector } from './connectors/fireflies.connector';
 import { HubSpotConnector } from './connectors/hubspot.connector';
 import { LinearConnector } from './connectors/linear.connector';
@@ -42,6 +45,32 @@ describe('IntegrationsService', () => {
     const configStore = new Map<string, Record<string, unknown>>();
     const mappings = new Map<string, Record<string, unknown>>();
     const metrics = new Map<string, { success: number; failure: number }>();
+    const statusMappings = new Map<
+      string,
+      {
+        items: Array<{
+          linearStatus: string;
+          internalStatus: string;
+          enabled: boolean;
+        }>;
+        updatedAt: string;
+      }
+    >();
+    const integrationLogs = new Map<
+      string,
+      {
+        id: string;
+        organizationId: string;
+        provider: string;
+        operation: string;
+        status: string;
+        correlationId?: string;
+        errorMessage?: string;
+        retryCount: number;
+        payload: Record<string, unknown>;
+        occurredAt: string;
+      }
+    >();
 
     const integrationConfigsRepositoryMock: Pick<
       IntegrationConfigsRepository,
@@ -210,6 +239,62 @@ describe('IntegrationsService', () => {
       },
     };
 
+    const statusMappingsRepositoryMock: Pick<
+      StatusMappingsRepository,
+      'findByOrganizationAndProvider' | 'upsert'
+    > = {
+      async findByOrganizationAndProvider(organizationId, provider) {
+        const item = statusMappings.get(`${organizationId}:${provider}`);
+        if (!item) {
+          return undefined;
+        }
+
+        return {
+          organizationId,
+          provider,
+          items: item.items,
+          updatedAt: item.updatedAt,
+        };
+      },
+      async upsert(mapping) {
+        statusMappings.set(`${mapping.organizationId}:${mapping.provider}`, {
+          items: mapping.items,
+          updatedAt: mapping.updatedAt,
+        });
+      },
+    };
+
+    const integrationLogsRepositoryMock: Pick<
+      IntegrationLogsRepository,
+      'list' | 'findById' | 'update'
+    > = {
+      async list(organizationId, options) {
+        const filtered = [...integrationLogs.values()]
+          .filter((item) => item.organizationId === organizationId)
+          .filter((item) =>
+            options.provider ? item.provider === options.provider : true,
+          )
+          .filter((item) =>
+            options.status ? item.status === options.status : true,
+          );
+
+        return {
+          items: filtered.slice(0, options.limit),
+          total: filtered.length,
+        };
+      },
+      async findById(id, organizationId) {
+        const item = integrationLogs.get(id);
+        if (!item || item.organizationId !== organizationId) {
+          return undefined;
+        }
+        return { ...item };
+      },
+      async update(log) {
+        integrationLogs.set(log.id, { ...log });
+      },
+    };
+
     const aiProcessingServiceMock: Pick<AiProcessingService, 'importNotes'> = {
       async importNotes() {
         return {
@@ -283,6 +368,7 @@ describe('IntegrationsService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IntegrationsService,
+        outboxRepositoryMockProvider,
         DomainEventsService,
         {
           provide: FirefliesConnector,
@@ -347,6 +433,14 @@ describe('IntegrationsService', () => {
         {
           provide: IntegrationCursorsRepository,
           useValue: integrationCursorsRepositoryMock,
+        },
+        {
+          provide: StatusMappingsRepository,
+          useValue: statusMappingsRepositoryMock,
+        },
+        {
+          provide: IntegrationLogsRepository,
+          useValue: integrationLogsRepositoryMock,
         },
       ],
     }).compile();

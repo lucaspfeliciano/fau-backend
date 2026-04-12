@@ -160,7 +160,7 @@ export class RequestsService {
     const secondCandidate = candidates[1];
     const isAmbiguous =
       Boolean(topCandidate && secondCandidate) &&
-      topCandidate!.score - secondCandidate!.score <
+      topCandidate.score - secondCandidate.score <
         DEDUPLICATION_POLICY.ambiguityDelta;
 
     if (
@@ -1012,7 +1012,7 @@ export class RequestsService {
           return false;
         }
 
-        const payload = event.payload as Record<string, unknown>;
+        const payload = event.payload;
         return (
           payload.requestId === requestId ||
           payload.sourceRequestId === requestId ||
