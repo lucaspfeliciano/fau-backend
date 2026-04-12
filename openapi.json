@@ -3299,13 +3299,206 @@
     "/roadmap/items": {
       "get": {
         "operationId": "RoadmapController_listItems",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "score",
+                "eta",
+                "impact"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "groupBy",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "none",
+                "status",
+                "owner",
+                "board",
+                "etaConfidence",
+                "category"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "etaConfidence",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "audience",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "cs",
+                "product",
+                "engineering",
+                "exec",
+                "all"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "tag",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "owner",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "request",
+                "feature",
+                "task",
+                "release"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "board",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Returns paginated roadmap items."
+            "description": "Returns paginated roadmap items.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "requestId",
+                          "title",
+                          "post",
+                          "board",
+                          "category",
+                          "owner",
+                          "status",
+                          "tags",
+                          "score",
+                          "scoreBreakdown",
+                          "eta",
+                          "impact",
+                          "riskLevel",
+                          "traceability",
+                          "updatedAt"
+                        ]
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "total",
+                    "page",
+                    "pageSize"
+                  ]
+                }
+              }
+            }
           },
           "401": {
             "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Access denied for current role."
           }
         },
         "security": [
@@ -3313,7 +3506,7 @@
             "bearer": []
           }
         ],
-        "summary": "List roadmap items with filters and sorting",
+        "summary": "List roadmap items with server-side filtering, sorting and pagination",
         "tags": [
           "Roadmap"
         ]

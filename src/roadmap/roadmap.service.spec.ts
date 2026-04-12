@@ -8,8 +8,12 @@ import { EngineeringService } from '../engineering/engineering.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ProductService } from '../product/product.service';
 import { RequestsService } from '../requests/requests.service';
-import { RoadmapItemCategory } from './entities/roadmap-item.entity';
 import {
+  RoadmapEtaConfidence,
+  RoadmapItemCategory,
+} from './entities/roadmap-item.entity';
+import {
+  RoadmapGroupBy,
   RoadmapSortBy,
   RoadmapSortOrder,
   RoadmapViewVisibility,
@@ -208,11 +212,14 @@ describe('RoadmapService', () => {
               version: 'v1.2.0',
               title: 'Spring release',
               notes: 'Finance module improvements.',
+              status: 'published',
               featureIds: ['feature-1'],
               sprintIds: ['sprint-1'],
               organizationId: 'org-1',
               createdBy: 'user-admin-1',
               createdAt: '2026-04-05T10:00:00.000Z',
+              updatedAt: '2026-04-05T12:00:00.000Z',
+              scheduledAt: '2026-04-25T00:00:00.000Z',
             },
           ];
         },
@@ -370,5 +377,40 @@ describe('RoadmapService', () => {
     );
 
     expect(remaining.total).toBe(0);
+  });
+
+  it('should filter items by tag and etaConfidence', async () => {
+    const byTag = await roadmapService.listItems(
+      {
+        page: 1,
+        pageSize: 20,
+        tag: 'finance',
+        sortBy: RoadmapSortBy.Score,
+        sortOrder: RoadmapSortOrder.Desc,
+      },
+      actor.organizationId,
+    );
+
+    expect(byTag.total).toBe(1);
+    expect(byTag.items[0]?.category).toBe(RoadmapItemCategory.Request);
+
+    const highEta = await roadmapService.listItems(
+      {
+        page: 1,
+        pageSize: 20,
+        etaConfidence: RoadmapEtaConfidence.High,
+        groupBy: RoadmapGroupBy.None,
+        sortBy: RoadmapSortBy.Impact,
+        sortOrder: RoadmapSortOrder.Desc,
+      },
+      actor.organizationId,
+    );
+
+    expect(highEta.total).toBeGreaterThan(0);
+    expect(
+      highEta.items.every(
+        (item) => item.eta.confidence === RoadmapEtaConfidence.High,
+      ),
+    ).toBe(true);
   });
 });

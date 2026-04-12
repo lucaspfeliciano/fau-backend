@@ -10,6 +10,11 @@ import {
 const RoadmapViewFiltersSchema = z.object({
   search: z.string().trim().min(1).max(120).optional(),
   status: z.string().trim().min(1).max(40).optional(),
+  owner: z.string().trim().min(1).max(120).optional(),
+  board: z.string().trim().min(1).max(120).optional(),
+  tag: z.string().trim().min(1).max(60).optional(),
+  audience: z.string().trim().min(1).max(40).optional(),
+  etaConfidence: z.string().trim().min(1).max(20).optional(),
   ownerId: z.string().trim().min(1).max(120).optional(),
   boardId: z.string().trim().min(1).max(120).optional(),
   category: z.nativeEnum(RoadmapItemCategory).optional(),

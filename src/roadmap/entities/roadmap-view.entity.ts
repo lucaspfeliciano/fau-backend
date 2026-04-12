@@ -10,6 +10,7 @@ export enum RoadmapViewVisibility {
 export enum RoadmapSortBy {
   Score = 'score',
   Eta = 'eta',
+  Impact = 'impact',
   Status = 'status',
 }
 
@@ -19,15 +20,23 @@ export enum RoadmapSortOrder {
 }
 
 export enum RoadmapGroupBy {
+  None = 'none',
   Category = 'category',
   Status = 'status',
   Owner = 'owner',
+  Board = 'board',
+  EtaConfidence = 'etaConfidence',
 }
 
 export interface RoadmapViewFilters {
   [key: string]: unknown;
   search?: string;
   status?: string;
+  owner?: string;
+  board?: string;
+  tag?: string;
+  audience?: string;
+  etaConfidence?: string;
   ownerId?: string;
   boardId?: string;
   category?: RoadmapItemCategory;
