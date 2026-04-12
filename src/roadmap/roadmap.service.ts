@@ -469,9 +469,6 @@ export class RoadmapService {
 
     while (page <= totalPages) {
       const result = await fetchPage(
-        
-       ,
-      
         page,
         RoadmapService.AGGREGATION_PAGE_LIMIT,
       );

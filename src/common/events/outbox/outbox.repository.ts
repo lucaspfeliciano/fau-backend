@@ -182,30 +182,30 @@ export class OutboxRepository {
       oldestPendingDoc,
       oldestDeadLetterDoc,
     ] = await Promise.all([
-      is.model.countDocuments({ status: 'pending' }).exec(),
-     tis.model.countDocuments({ status: 'completed' }).exec(),
-    this.model.countDocuments({ status: 'dead_letter' }).exec(),
-      is.model
-       .ountDocuments({
-        status: 'pending',
-          r: [
-           {nextRetryAt: { $exists: false } },
-          { nextRetryAt: { $lte: now } },
-          
-       }
-      .exec(),
-      is.model
-       .indOne({ status: 'pending' })
-      .select({ createdAt: 1, _id: 0 })
-        ort({ createdAt: 1 })
-       .ean<{ createdAt: Date }>()
-      .exec(),
-      is.model
-       .indOne({ status: 'dead_letter' })
-      .select({ createdAt: 1, _id: 0 })
-        ort({ createdAt: 1 })
-       .ean<{ createdAt: Date }>()
-      .exec(),
+      this.model.countDocuments({ status: 'pending' }).exec(),
+      this.model.countDocuments({ status: 'completed' }).exec(),
+      this.model.countDocuments({ status: 'dead_letter' }).exec(),
+      this.model
+        .countDocuments({
+          status: 'pending',
+          $or: [
+            { nextRetryAt: { $exists: false } },
+            { nextRetryAt: { $lte: now } },
+          ],
+        })
+        .exec(),
+      this.model
+        .findOne({ status: 'pending' })
+        .select({ createdAt: 1, _id: 0 })
+        .sort({ createdAt: 1 })
+        .lean<{ createdAt: Date }>()
+        .exec(),
+      this.model
+        .findOne({ status: 'dead_letter' })
+        .select({ createdAt: 1, _id: 0 })
+        .sort({ createdAt: 1 })
+        .lean<{ createdAt: Date }>()
+        .exec(),
     ]);
 
     return {
