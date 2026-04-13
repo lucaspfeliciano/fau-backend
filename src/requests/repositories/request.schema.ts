@@ -119,6 +119,12 @@ export class RequestModel {
   @Prop({ type: String })
   ingestedAt?: string;
 
+  @Prop({ type: String })
+  publicSubmitterName?: string;
+
+  @Prop({ type: String })
+  publicSubmitterEmail?: string;
+
   @Prop({ type: String, index: true })
   mergedIntoRequestId?: string;
 

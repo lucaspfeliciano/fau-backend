@@ -97,6 +97,30 @@ export class ProductController {
     return this.productService.listInitiatives(query, user.organizationId);
   }
 
+  @Get('initiatives/:id')
+  @ApiOperation({ summary: 'Get initiative by id' })
+  @ApiOkResponse({ description: 'Returns the requested initiative.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async getInitiative(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.productService.getInitiative(id, user.organizationId);
+  }
+
+  @Get('initiatives/:id/features')
+  @ApiOperation({ summary: 'Get features for a specific initiative' })
+  @ApiOkResponse({
+    description: 'Returns the features for the requested initiative.',
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async getInitiativeFeatures(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.productService.getInitiativeFeatures(id, user.organizationId);
+  }
+
   @Patch('initiatives/:id')
   @Roles(Role.Admin, Role.Editor)
   @ApiOperation({ summary: 'Update initiative by id' })

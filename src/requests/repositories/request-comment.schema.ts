@@ -20,6 +20,15 @@ export class RequestCommentModel {
   @Prop({ type: String, required: true })
   createdBy!: string;
 
+  @Prop({ type: String })
+  sourceType?: string;
+
+  @Prop({ type: String })
+  publicAuthorName?: string;
+
+  @Prop({ type: String })
+  publicAuthorEmail?: string;
+
   @Prop({ type: String, required: true, index: true })
   createdAt!: string;
 }

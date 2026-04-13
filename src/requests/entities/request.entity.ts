@@ -54,6 +54,8 @@ export interface RequestEntity {
   sourceType: RequestSourceType;
   sourceRef?: string;
   ingestedAt?: string;
+  publicSubmitterName?: string;
+  publicSubmitterEmail?: string;
   mergedIntoRequestId?: string;
   mergedRequestIds?: string[];
   deduplicationEvidence?: RequestDeduplicationEvidenceEntry[];

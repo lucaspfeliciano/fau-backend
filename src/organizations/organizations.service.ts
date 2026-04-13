@@ -26,10 +26,16 @@ export class OrganizationsService {
       );
     }
 
+    const slug = await this.generateUniqueSlug(normalizedName);
+
     const now = new Date().toISOString();
     const organization: OrganizationEntity = {
       id: randomUUID(),
       name: normalizedName,
+      slug,
+      publicPortalEnabled: false,
+      publicRoadmapEnabled: false,
+      publicChangelogEnabled: false,
       createdBy: userId,
       createdAt: now,
       updatedAt: now,
@@ -111,5 +117,38 @@ export class OrganizationsService {
 
   findById(id: string): Promise<OrganizationEntity | undefined> {
     return this.organizationsRepository.findById(id);
+  }
+
+  findBySlug(slug: string): Promise<OrganizationEntity | undefined> {
+    return this.organizationsRepository.findBySlug(slug.trim().toLowerCase());
+  }
+
+  private async generateUniqueSlug(name: string): Promise<string> {
+    const baseSlug = this.slugify(name);
+    let candidate = baseSlug;
+    let suffix = 2;
+
+    while (await this.organizationsRepository.findBySlug(candidate)) {
+      candidate = `${baseSlug}-${suffix}`;
+      suffix += 1;
+    }
+
+    return candidate;
+  }
+
+  private slugify(value: string): string {
+    const normalized = value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 60);
+
+    if (normalized.length > 0) {
+      return normalized;
+    }
+
+    return `workspace-${randomUUID().slice(0, 8)}`;
   }
 }

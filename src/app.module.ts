@@ -17,6 +17,7 @@ import { IntegrationsModule } from './integrations/integrations.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { ProductModule } from './product/product.module';
+import { PublicPortalModule } from './public-portal/public-portal.module';
 import { PrioritizationModule } from './prioritization/prioritization.module';
 import { RoadmapModule } from './roadmap/roadmap.module';
 import { RequestsModule } from './requests/requests.module';
@@ -34,6 +35,7 @@ import { UsersModule } from './users/users.module';
     CompaniesModule,
     CustomersModule,
     RequestsModule,
+    PublicPortalModule,
     ProductModule,
     PrioritizationModule,
     EngineeringModule,

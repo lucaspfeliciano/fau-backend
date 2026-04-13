@@ -73,6 +73,21 @@ export interface IntelligentCreationResult {
   mergedRequestId?: string;
 }
 
+export interface CreatePublicPortalRequestInput {
+  title: string;
+  description: string;
+  boardId?: string;
+  tags?: string[];
+  publicSubmitterName: string;
+  publicSubmitterEmail: string;
+}
+
+export interface CreatePublicPortalCommentInput {
+  comment: string;
+  publicAuthorName: string;
+  publicAuthorEmail: string;
+}
+
 export interface DeduplicationMetricsResult {
   totalEvaluations: number;
   created: number;
@@ -138,6 +153,63 @@ export class RequestsService {
     actor: AuthenticatedUser,
   ): Promise<RequestEntity> {
     return this.createRaw(input, actor);
+  }
+
+  async createFromPublicPortal(
+    input: CreatePublicPortalRequestInput,
+    organizationId: string,
+  ): Promise<RequestEntity> {
+    const now = new Date().toISOString();
+    const actorId = 'public-portal';
+    const status = RequestStatus.Backlog;
+
+    const request: RequestEntity = {
+      id: randomUUID(),
+      title: input.title,
+      description: input.description,
+      boardId: input.boardId,
+      status,
+      votes: 1,
+      tags: this.uniqueValues(input.tags),
+      createdBy: actorId,
+      organizationId,
+      customerIds: [],
+      companyIds: [],
+      sourceType: RequestSourceType.PublicPortal,
+      sourceRef: 'public-portal',
+      ingestedAt: now,
+      publicSubmitterName: input.publicSubmitterName,
+      publicSubmitterEmail: input.publicSubmitterEmail.trim().toLowerCase(),
+      mergedRequestIds: [],
+      deduplicationEvidence: [],
+      mergeHistory: [],
+      statusHistory: [
+        {
+          from: null,
+          to: status,
+          changedBy: actorId,
+          changedAt: now,
+        },
+      ],
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await this.requestsRepository.insert(request);
+
+    this.domainEventsService.publish({
+      name: 'request.created',
+      occurredAt: now,
+      actorId,
+      organizationId,
+      payload: {
+        requestId: request.id,
+        status: request.status,
+        sourceType: request.sourceType,
+      },
+    });
+
+    return request;
   }
 
   async createWithIntelligentDeduplication(
@@ -759,6 +831,43 @@ export class RequestsService {
     return comment;
   }
 
+  async addPublicComment(
+    requestId: string,
+    input: CreatePublicPortalCommentInput,
+    organizationId: string,
+  ): Promise<RequestCommentEntity> {
+    await this.findById(requestId, organizationId, false);
+
+    const actorId = 'public-portal';
+    const comment: RequestCommentEntity = {
+      id: randomUUID(),
+      requestId,
+      organizationId,
+      comment: input.comment,
+      createdBy: actorId,
+      sourceType: RequestSourceType.PublicPortal,
+      publicAuthorName: input.publicAuthorName,
+      publicAuthorEmail: input.publicAuthorEmail.trim().toLowerCase(),
+      createdAt: new Date().toISOString(),
+    };
+
+    await this.insertComment(comment);
+
+    this.domainEventsService.publish({
+      name: 'request.comment_added',
+      occurredAt: comment.createdAt,
+      actorId,
+      organizationId,
+      payload: {
+        requestId,
+        commentId: comment.id,
+        sourceType: RequestSourceType.PublicPortal,
+      },
+    });
+
+    return comment;
+  }
+
   async listComments(
     requestId: string,
     organizationId: string,
@@ -805,6 +914,30 @@ export class RequestsService {
       occurredAt: request.updatedAt,
       actorId: actor.id,
       organizationId: actor.organizationId,
+      payload: {
+        requestId: request.id,
+        votes: request.votes,
+      },
+    });
+
+    return request;
+  }
+
+  async voteFromPublicPortal(
+    requestId: string,
+    organizationId: string,
+    actorId = 'public-portal',
+  ): Promise<RequestEntity> {
+    const request = await this.findById(requestId, organizationId, false);
+    request.votes += 1;
+    request.updatedAt = new Date().toISOString();
+    await this.requestsRepository.update(request);
+
+    this.domainEventsService.publish({
+      name: 'request.voted',
+      occurredAt: request.updatedAt,
+      actorId,
+      organizationId,
       payload: {
         requestId: request.id,
         votes: request.votes,

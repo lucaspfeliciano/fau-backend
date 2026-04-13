@@ -11,6 +11,18 @@ export class OrganizationModel {
   @Prop({ type: String, required: true })
   name!: string;
 
+  @Prop({ type: String, required: true, unique: true, index: true })
+  slug!: string;
+
+  @Prop({ type: Boolean, required: true, default: false })
+  publicPortalEnabled!: boolean;
+
+  @Prop({ type: Boolean, required: true, default: false })
+  publicRoadmapEnabled!: boolean;
+
+  @Prop({ type: Boolean, required: true, default: false })
+  publicChangelogEnabled!: boolean;
+
   @Prop({ type: String, required: true })
   createdBy!: string;
 
@@ -23,3 +35,5 @@ export class OrganizationModel {
 
 export const OrganizationSchema =
   SchemaFactory.createForClass(OrganizationModel);
+
+OrganizationSchema.index({ slug: 1 }, { unique: true });

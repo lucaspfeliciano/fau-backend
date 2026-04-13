@@ -98,6 +98,24 @@ export class ProductService {
     return initiative;
   }
 
+  async getInitiative(
+    id: string,
+    organizationId: string,
+  ): Promise<InitiativeEntity> {
+    return this.findInitiativeById(id, organizationId);
+  }
+
+  async getInitiativeFeatures(
+    id: string,
+    organizationId: string,
+  ): Promise<FeatureEntity[]> {
+    const initiative = await this.findInitiativeById(id, organizationId);
+    return this.featuresRepository.findByIds(
+      initiative.featureIds,
+      organizationId,
+    );
+  }
+
   async listInitiatives(
     query: QueryInitiativesInput,
     organizationId: string,

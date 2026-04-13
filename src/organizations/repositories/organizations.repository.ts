@@ -23,4 +23,13 @@ export class OrganizationsRepository {
 
     return doc ?? undefined;
   }
+
+  async findBySlug(slug: string): Promise<OrganizationEntity | undefined> {
+    const doc = await this.organizationModel
+      .findOne({ slug })
+      .lean<OrganizationEntity>()
+      .exec();
+
+    return doc ?? undefined;
+  }
 }

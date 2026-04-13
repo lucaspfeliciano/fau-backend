@@ -41,6 +41,31 @@ export class FeaturesRepository {
     return doc ?? undefined;
   }
 
+  async findByIds(
+    ids: string[],
+    organizationId: string,
+  ): Promise<FeatureEntity[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const uniqueIds = Array.from(new Set(ids));
+
+    const docs = await this.featureModel
+      .find({
+        id: { $in: uniqueIds },
+        organizationId,
+      })
+      .lean<FeatureEntity[]>()
+      .exec();
+
+    const byId = new Map(docs.map((feature) => [feature.id, feature]));
+
+    return ids
+      .map((id) => byId.get(id))
+      .filter((feature): feature is FeatureEntity => Boolean(feature));
+  }
+
   async listByOrganization(organizationId: string): Promise<FeatureEntity[]> {
     return this.featureModel
       .find({ organizationId })

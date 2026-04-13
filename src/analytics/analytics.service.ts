@@ -22,6 +22,7 @@ interface PaginatedListResult<T> {
 @Injectable()
 export class AnalyticsService {
   private static readonly PAGE_LIMIT = 100;
+  private static readonly DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 
   constructor(
     private readonly requestsService: RequestsService,
@@ -193,8 +194,8 @@ export class AnalyticsService {
   }
 
   private normalizeDateRange(startDate: string, endDate: string): DateRange {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    const start = this.parseRangeBoundary(startDate, 'start');
+    const end = this.parseRangeBoundary(endDate, 'end');
 
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       throw new BadRequestException('Invalid startDate or endDate.');
@@ -210,6 +211,35 @@ export class AnalyticsService {
       startIso: start.toISOString(),
       endIso: end.toISOString(),
     };
+  }
+
+  private parseRangeBoundary(value: string, boundary: 'start' | 'end'): Date {
+    const trimmed = value.trim();
+    const match = AnalyticsService.DATE_ONLY_PATTERN.exec(trimmed);
+
+    if (match) {
+      const [, yearRaw, monthRaw, dayRaw] = match;
+      const year = Number(yearRaw);
+      const month = Number(monthRaw);
+      const day = Number(dayRaw);
+
+      const date =
+        boundary === 'start'
+          ? new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0))
+          : new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+
+      if (
+        date.getUTCFullYear() !== year ||
+        date.getUTCMonth() !== month - 1 ||
+        date.getUTCDate() !== day
+      ) {
+        throw new BadRequestException('Invalid startDate or endDate.');
+      }
+
+      return date;
+    }
+
+    return new Date(trimmed);
   }
 
   private inRange(dateStr: string | undefined, range: DateRange): boolean {
