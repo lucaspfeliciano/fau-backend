@@ -7,10 +7,14 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { CompaniesService } from '../companies/companies.service';
+import { Role } from '../common/auth/role.enum';
+import type { AuthenticatedUser } from '../common/auth/authenticated-user.interface';
 import { DomainEventsService } from '../common/events/domain-events.service';
 import type { DomainEvent } from '../common/events/domain-event.interface';
 import { CustomersService } from '../customers/customers.service';
-import type { AuthenticatedUser } from '../common/auth/authenticated-user.interface';
+import { CreateFeedbackDto } from '../feedback/dto/create-feedback.dto';
+import { FeedbackSource } from '../feedback/entities/feedback-source.enum';
+import { FeedbackService } from '../feedback/feedback.service';
 import type { CreateRequestCommentInput } from './dto/create-request-comment.schema';
 import type { CreateRequestInput } from './dto/create-request.schema';
 import type { FindSimilarRequestsInput } from './dto/find-similar-requests.schema';
@@ -20,9 +24,9 @@ import type { RequestCommentEntity } from './entities/request-comment.entity';
 import type {
   RequestDeduplicationDecision,
   RequestDeduplicationEvidenceEntry,
+  RequestEntity,
   RequestMergeHistoryEntry,
 } from './entities/request.entity';
-import { RequestEntity } from './entities/request.entity';
 import { RequestSourceType } from './entities/request-source-type.enum';
 import { RequestStatus } from './entities/request-status.enum';
 import {
@@ -119,6 +123,17 @@ interface DeduplicationMetrics {
   reversals: number;
 }
 
+interface RequestsListQuery {
+  page?: number;
+  limit?: number;
+  includeArchived?: boolean;
+  status?: RequestStatus;
+  customerId?: string;
+  boardId?: string;
+  tag?: string;
+  search?: string;
+}
+
 const DEDUPLICATION_POLICY: DeduplicationPolicy = {
   suggestionThreshold: 0.35,
   autoLinkThreshold: 0.55,
@@ -146,70 +161,66 @@ export class RequestsService {
     private readonly domainEventsService: DomainEventsService,
     private readonly customersService: CustomersService,
     private readonly companiesService: CompaniesService,
+    @Optional() private readonly feedbackService?: FeedbackService,
   ) {}
 
   async create(
     input: CreateRequestInput,
     actor: AuthenticatedUser,
   ): Promise<RequestEntity> {
-    return this.createRaw(input, actor);
+    return this.createRaw(input, {
+      id: actor.id,
+      organizationId: actor.organizationId,
+    });
   }
 
   async createFromPublicPortal(
     input: CreatePublicPortalRequestInput,
     organizationId: string,
   ): Promise<RequestEntity> {
-    const now = new Date().toISOString();
-    const actorId = 'public-portal';
-    const status = RequestStatus.Backlog;
+    const feedbackIds: string[] = [];
 
-    const request: RequestEntity = {
-      id: randomUUID(),
-      title: input.title,
-      description: input.description,
-      boardId: input.boardId,
-      status,
-      votes: 1,
-      tags: this.uniqueValues(input.tags),
-      createdBy: actorId,
-      organizationId,
-      customerIds: [],
-      companyIds: [],
-      sourceType: RequestSourceType.PublicPortal,
-      sourceRef: 'public-portal',
-      ingestedAt: now,
-      publicSubmitterName: input.publicSubmitterName,
-      publicSubmitterEmail: input.publicSubmitterEmail.trim().toLowerCase(),
-      mergedRequestIds: [],
-      deduplicationEvidence: [],
-      mergeHistory: [],
-      statusHistory: [
+    if (this.feedbackService) {
+      const pseudoActor: AuthenticatedUser = {
+        id: 'public-portal',
+        email: 'public-portal@system.local',
+        name: 'Public Portal',
+        role: Role.Viewer,
+        organizationId,
+      };
+
+      const createdFeedback = await this.feedbackService.create(
         {
-          from: null,
-          to: status,
-          changedBy: actorId,
-          changedAt: now,
-        },
-      ],
-      createdAt: now,
-      updatedAt: now,
-    };
+          title: input.title,
+          description: input.description,
+          source: FeedbackSource.PublicPortal,
+          publicSubmitterName: input.publicSubmitterName,
+          publicSubmitterEmail: input.publicSubmitterEmail,
+        } satisfies CreateFeedbackDto,
+        pseudoActor,
+      );
 
-    await this.requestsRepository.insert(request);
+      feedbackIds.push(createdFeedback.id);
+    }
 
-    this.domainEventsService.publish({
-      name: 'request.created',
-      occurredAt: now,
-      actorId,
-      organizationId,
-      payload: {
-        requestId: request.id,
-        status: request.status,
-        sourceType: request.sourceType,
+    return this.createRaw(
+      {
+        title: input.title,
+        description: input.description,
+        status: RequestStatus.New,
+        feedbackIds,
+        sourceType: RequestSourceType.PublicPortal,
+        sourceRef: 'public-portal',
+        boardId: input.boardId,
+        tags: input.tags,
+        publicSubmitterName: input.publicSubmitterName,
+        publicSubmitterEmail: input.publicSubmitterEmail,
       },
-    });
-
-    return request;
+      {
+        id: 'public-portal',
+        organizationId,
+      },
+    );
   }
 
   async createWithIntelligentDeduplication(
@@ -219,7 +230,6 @@ export class RequestsService {
     const normalizedText = `${input.title} ${input.description}`
       .trim()
       .toLowerCase();
-
     const candidates = await this.collectDeduplicationCandidates(
       actor.organizationId,
       normalizedText,
@@ -343,73 +353,23 @@ export class RequestsService {
     };
   }
 
-  private async createRaw(
-    input: CreateRequestInput,
-    actor: AuthenticatedUser,
-  ): Promise<RequestEntity> {
-    const now = new Date().toISOString();
-    const status = input.status ?? RequestStatus.Backlog;
-    const sourceType = input.sourceType ?? RequestSourceType.Manual;
-
-    const request: RequestEntity = {
-      id: randomUUID(),
-      title: input.title,
-      description: input.description,
-      boardId: input.boardId,
-      status,
-      votes: 1,
-      tags: this.uniqueValues(input.tags),
-      createdBy: actor.id,
-      organizationId: actor.organizationId,
-      customerIds: this.uniqueValues(input.customerIds),
-      companyIds: this.uniqueValues(input.companyIds),
-      sourceType,
-      sourceRef: input.sourceRef,
-      ingestedAt: sourceType === RequestSourceType.Manual ? undefined : now,
-      mergedRequestIds: [],
-      deduplicationEvidence: [],
-      mergeHistory: [],
-      statusHistory: [
-        {
-          from: null,
-          to: status,
-          changedBy: actor.id,
-          changedAt: now,
-        },
-      ],
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    await this.requestsRepository.insert(request);
-
-    this.domainEventsService.publish({
-      name: 'request.created',
-      occurredAt: now,
-      actorId: actor.id,
-      organizationId: actor.organizationId,
-      payload: {
-        requestId: request.id,
-        status: request.status,
-        sourceType: request.sourceType,
-      },
-    });
-
-    return request;
-  }
-
   async list(
-    query: QueryRequestsInput,
+    query: QueryRequestsInput | RequestsListQuery,
     organizationId: string,
   ): Promise<PaginatedRequestsResult> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const includeArchived = query.includeArchived ?? false;
+
     if (this.requestsRepository.queryByOrganization) {
       const result = await this.requestsRepository.queryByOrganization(
         organizationId,
         {
-          page: query.page,
-          limit: query.limit,
-          includeArchived: query.includeArchived,
+          page,
+          limit,
+          includeArchived,
           status: query.status,
+          customerId: query.customerId,
           boardId: query.boardId,
           tag: query.tag,
           search: query.search,
@@ -418,11 +378,10 @@ export class RequestsService {
 
       return {
         items: result.items,
-        page: query.page,
-        limit: query.limit,
+        page,
+        limit,
         total: result.total,
-        totalPages:
-          result.total === 0 ? 0 : Math.ceil(result.total / query.limit),
+        totalPages: result.total === 0 ? 0 : Math.ceil(result.total / limit),
       };
     }
 
@@ -430,7 +389,7 @@ export class RequestsService {
       await this.requestsRepository.listByOrganization(organizationId)
     )
       .filter((request) => {
-        if (query.includeArchived) {
+        if (includeArchived) {
           return true;
         }
 
@@ -442,6 +401,13 @@ export class RequestsService {
         }
 
         return request.status === query.status;
+      })
+      .filter((request) => {
+        if (!query.customerId) {
+          return true;
+        }
+
+        return (request.customerIds ?? []).includes(query.customerId);
       })
       .filter((request) => {
         if (!query.boardId) {
@@ -456,7 +422,9 @@ export class RequestsService {
         }
 
         const targetTag = query.tag.toLowerCase();
-        return request.tags.some((tag) => tag.toLowerCase() === targetTag);
+        return (request.tags ?? []).some(
+          (tag) => tag.toLowerCase() === targetTag,
+        );
       })
       .filter((request) => {
         if (!query.search) {
@@ -466,13 +434,19 @@ export class RequestsService {
         const search = query.search.toLowerCase();
         return (
           request.title.toLowerCase().includes(search) ||
-          request.description.toLowerCase().includes(search)
+          request.description.toLowerCase().includes(search) ||
+          (request.product ?? '').toLowerCase().includes(search) ||
+          (request.functionality ?? '').toLowerCase().includes(search) ||
+          request.problems.some((problem) =>
+            problem.toLowerCase().includes(search),
+          ) ||
+          request.solutions.some((solution) =>
+            solution.toLowerCase().includes(search),
+          )
         );
       })
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
-    const page = query.page;
-    const limit = query.limit;
     const total = filtered.length;
     const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
     const offset = (page - 1) * limit;
@@ -498,6 +472,12 @@ export class RequestsService {
     input: UpdateRequestInput,
     actor: AuthenticatedUser,
   ): Promise<RequestEntity> {
+    if (Object.keys(input).length === 0) {
+      throw new BadRequestException(
+        'At least one field must be provided for update.',
+      );
+    }
+
     const request = await this.findById(requestId, actor.organizationId, false);
     const previousStatus = request.status;
 
@@ -509,16 +489,73 @@ export class RequestsService {
       request.description = input.description;
     }
 
+    if (input.feedbackIds !== undefined) {
+      const feedbackIds = this.uniqueValues(input.feedbackIds);
+      if (this.feedbackService) {
+        await this.feedbackService.ensureExists(
+          feedbackIds,
+          actor.organizationId,
+        );
+      }
+      request.feedbackIds = feedbackIds;
+    }
+
+    if (input.customerIds !== undefined) {
+      const customerIds = this.uniqueValues(input.customerIds);
+      await this.ensureCustomersExist(customerIds, actor.organizationId);
+      request.customerIds = customerIds;
+    }
+
+    if (input.problems !== undefined) {
+      request.problems = this.uniqueValues(input.problems);
+    }
+
+    if (input.solutions !== undefined) {
+      request.solutions = this.uniqueValues(input.solutions);
+    }
+
+    if (input.product !== undefined) {
+      request.product = input.product?.trim() || undefined;
+    }
+
+    if (input.functionality !== undefined) {
+      request.functionality = input.functionality?.trim() || undefined;
+    }
+
+    if (input.status !== undefined && input.status !== request.status) {
+      request.status = input.status;
+
+      if (!request.statusHistory) {
+        request.statusHistory = [];
+      }
+
+      request.statusHistory.push({
+        from: previousStatus,
+        to: input.status,
+        changedBy: actor.id,
+        changedAt: new Date().toISOString(),
+      });
+
+      this.domainEventsService.publish({
+        name: 'request.status_changed',
+        occurredAt: new Date().toISOString(),
+        actorId: actor.id,
+        organizationId: actor.organizationId,
+        payload: {
+          requestId: request.id,
+          from: previousStatus,
+          to: input.status,
+        },
+      });
+    }
+
+    // Legacy compatibility fields.
     if (input.boardId !== undefined) {
       request.boardId = input.boardId ?? undefined;
     }
 
     if (input.tags !== undefined) {
       request.tags = this.uniqueValues(input.tags);
-    }
-
-    if (input.customerIds !== undefined) {
-      request.customerIds = this.uniqueValues(input.customerIds);
     }
 
     if (input.companyIds !== undefined) {
@@ -539,26 +576,14 @@ export class RequestsService {
       request.sourceRef = input.sourceRef;
     }
 
-    if (input.status !== undefined && input.status !== request.status) {
-      request.status = input.status;
-      request.statusHistory.push({
-        from: previousStatus,
-        to: input.status,
-        changedBy: actor.id,
-        changedAt: new Date().toISOString(),
-      });
+    if (input.publicSubmitterName !== undefined) {
+      request.publicSubmitterName = input.publicSubmitterName ?? undefined;
+    }
 
-      this.domainEventsService.publish({
-        name: 'request.status_changed',
-        occurredAt: new Date().toISOString(),
-        actorId: actor.id,
-        organizationId: actor.organizationId,
-        payload: {
-          requestId: request.id,
-          from: previousStatus,
-          to: input.status,
-        },
-      });
+    if (input.publicSubmitterEmail !== undefined) {
+      request.publicSubmitterEmail = input.publicSubmitterEmail
+        ? input.publicSubmitterEmail.trim().toLowerCase()
+        : undefined;
     }
 
     request.updatedAt = new Date().toISOString();
@@ -605,7 +630,7 @@ export class RequestsService {
           return true;
         }
 
-        return request.customerIds.includes(input.customerId);
+        return (request.customerIds ?? []).includes(input.customerId);
       })
       .map((request) => {
         const referenceText = `${request.title} ${request.description}`;
@@ -680,7 +705,10 @@ export class RequestsService {
     target.mergedRequestIds = (target.mergedRequestIds ?? []).filter(
       (id) => id !== source.id,
     );
-    target.votes = Math.max(1, target.votes - Math.max(1, source.votes));
+    target.votes = Math.max(
+      1,
+      (target.votes ?? 1) - Math.max(1, source.votes ?? 1),
+    );
     target.updatedAt = now;
 
     this.appendMergeHistory(target, {
@@ -799,6 +827,41 @@ export class RequestsService {
       .slice(0, limit);
   }
 
+  async findMostSimilarByText(
+    organizationId: string,
+    rawText: string,
+    threshold: number,
+  ): Promise<SimilarRequestMatch | undefined> {
+    const normalized = rawText.trim().toLowerCase();
+    if (!normalized) {
+      return undefined;
+    }
+
+    let bestMatch: SimilarRequestMatch | undefined;
+
+    const organizationRequests = (
+      await this.requestsRepository.listByOrganization(organizationId)
+    ).filter((request) => !request.deletedAt);
+
+    for (const request of organizationRequests) {
+      const referenceText = `${request.title} ${request.description}`;
+      const score = this.calculateTextSimilarity(normalized, referenceText);
+
+      if (score < threshold) {
+        continue;
+      }
+
+      if (!bestMatch || score > bestMatch.score) {
+        bestMatch = {
+          request,
+          score,
+        };
+      }
+    }
+
+    return bestMatch;
+  }
+
   async addComment(
     requestId: string,
     input: CreateRequestCommentInput,
@@ -838,13 +901,12 @@ export class RequestsService {
   ): Promise<RequestCommentEntity> {
     await this.findById(requestId, organizationId, false);
 
-    const actorId = 'public-portal';
     const comment: RequestCommentEntity = {
       id: randomUUID(),
       requestId,
       organizationId,
       comment: input.comment,
-      createdBy: actorId,
+      createdBy: 'public-portal',
       sourceType: RequestSourceType.PublicPortal,
       publicAuthorName: input.publicAuthorName,
       publicAuthorEmail: input.publicAuthorEmail.trim().toLowerCase(),
@@ -856,7 +918,7 @@ export class RequestsService {
     this.domainEventsService.publish({
       name: 'request.comment_added',
       occurredAt: comment.createdAt,
-      actorId,
+      actorId: 'public-portal',
       organizationId,
       payload: {
         requestId,
@@ -905,7 +967,7 @@ export class RequestsService {
     actor: AuthenticatedUser,
   ): Promise<RequestEntity> {
     const request = await this.findById(requestId, actor.organizationId, false);
-    request.votes += 1;
+    request.votes = (request.votes ?? 0) + 1;
     request.updatedAt = new Date().toISOString();
     await this.requestsRepository.update(request);
 
@@ -929,7 +991,7 @@ export class RequestsService {
     actorId = 'public-portal',
   ): Promise<RequestEntity> {
     const request = await this.findById(requestId, organizationId, false);
-    request.votes += 1;
+    request.votes = (request.votes ?? 0) + 1;
     request.updatedAt = new Date().toISOString();
     await this.requestsRepository.update(request);
 
@@ -954,6 +1016,10 @@ export class RequestsService {
   ): Promise<RequestEntity> {
     const request = await this.findById(requestId, actor.organizationId, false);
     await this.customersService.findOneById(customerId, actor.organizationId);
+
+    if (!request.customerIds) {
+      request.customerIds = [];
+    }
 
     if (!request.customerIds.includes(customerId)) {
       request.customerIds.push(customerId);
@@ -981,8 +1047,10 @@ export class RequestsService {
     actor: AuthenticatedUser,
   ): Promise<RequestEntity> {
     const request = await this.findById(requestId, actor.organizationId, false);
-    const previousLength = request.customerIds.length;
-    request.customerIds = request.customerIds.filter((id) => id !== customerId);
+    const previousLength = (request.customerIds ?? []).length;
+    request.customerIds = (request.customerIds ?? []).filter(
+      (id) => id !== customerId,
+    );
 
     if (request.customerIds.length !== previousLength) {
       request.updatedAt = new Date().toISOString();
@@ -1011,21 +1079,14 @@ export class RequestsService {
     const request = await this.findById(requestId, actor.organizationId, false);
     await this.companiesService.findOneById(companyId, actor.organizationId);
 
+    if (!request.companyIds) {
+      request.companyIds = [];
+    }
+
     if (!request.companyIds.includes(companyId)) {
       request.companyIds.push(companyId);
       request.updatedAt = new Date().toISOString();
       await this.requestsRepository.update(request);
-
-      this.domainEventsService.publish({
-        name: 'request.company_linked',
-        occurredAt: request.updatedAt,
-        actorId: actor.id,
-        organizationId: actor.organizationId,
-        payload: {
-          requestId: request.id,
-          companyId,
-        },
-      });
     }
 
     return request;
@@ -1037,24 +1098,12 @@ export class RequestsService {
     actor: AuthenticatedUser,
   ): Promise<RequestEntity> {
     const request = await this.findById(requestId, actor.organizationId, false);
-    const previousLength = request.companyIds.length;
-    request.companyIds = request.companyIds.filter((id) => id !== companyId);
 
-    if (request.companyIds.length !== previousLength) {
-      request.updatedAt = new Date().toISOString();
-      await this.requestsRepository.update(request);
-
-      this.domainEventsService.publish({
-        name: 'request.company_unlinked',
-        occurredAt: request.updatedAt,
-        actorId: actor.id,
-        organizationId: actor.organizationId,
-        payload: {
-          requestId: request.id,
-          companyId,
-        },
-      });
-    }
+    request.companyIds = (request.companyIds ?? []).filter(
+      (id) => id !== companyId,
+    );
+    request.updatedAt = new Date().toISOString();
+    await this.requestsRepository.update(request);
 
     return request;
   }
@@ -1066,9 +1115,8 @@ export class RequestsService {
     featureId: string,
   ): Promise<RequestEntity[]> {
     const updatedRequests: RequestEntity[] = [];
-    const uniqueRequestIds = this.uniqueValues(requestIds);
 
-    for (const requestId of uniqueRequestIds) {
+    for (const requestId of this.uniqueValues(requestIds)) {
       const request = await this.findById(
         requestId,
         actor.organizationId,
@@ -1083,12 +1131,18 @@ export class RequestsService {
       const previousStatus = request.status;
       request.status = status;
       const changedAt = new Date().toISOString();
+
+      if (!request.statusHistory) {
+        request.statusHistory = [];
+      }
+
       request.statusHistory.push({
         from: previousStatus,
         to: status,
         changedBy: actor.id,
         changedAt,
       });
+
       request.updatedAt = changedAt;
       await this.requestsRepository.update(request);
 
@@ -1106,55 +1160,10 @@ export class RequestsService {
         },
       });
 
-      this.domainEventsService.publish({
-        name: 'request.updated',
-        occurredAt: changedAt,
-        actorId: actor.id,
-        organizationId: actor.organizationId,
-        payload: {
-          requestId: request.id,
-        },
-      });
-
       updatedRequests.push(request);
     }
 
     return updatedRequests;
-  }
-
-  async findMostSimilarByText(
-    organizationId: string,
-    rawText: string,
-    threshold: number,
-  ): Promise<SimilarRequestMatch | undefined> {
-    const normalized = rawText.trim().toLowerCase();
-    if (!normalized) {
-      return undefined;
-    }
-
-    let bestMatch: SimilarRequestMatch | undefined;
-
-    const organizationRequests = (
-      await this.requestsRepository.listByOrganization(organizationId)
-    ).filter((request) => !request.deletedAt);
-
-    for (const request of organizationRequests) {
-      const referenceText = `${request.title} ${request.description}`;
-      const score = this.calculateTextSimilarity(normalized, referenceText);
-
-      if (score < threshold) {
-        continue;
-      }
-
-      if (!bestMatch || score > bestMatch.score) {
-        bestMatch = {
-          request,
-          score,
-        };
-      }
-    }
-
-    return bestMatch;
   }
 
   async getRequestUpdates(
@@ -1164,18 +1173,8 @@ export class RequestsService {
     const request = await this.findOneById(requestId, organizationId);
     const updates = this.domainEventsService
       .list()
-      .filter((event) => {
-        if (event.organizationId !== organizationId) {
-          return false;
-        }
-
-        const payload = event.payload;
-        return (
-          payload.requestId === requestId ||
-          payload.sourceRequestId === requestId ||
-          payload.targetRequestId === requestId
-        );
-      })
+      .filter((event) => event.organizationId === organizationId)
+      .filter((event) => event.payload.requestId === requestId)
       .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
 
     return {
@@ -1243,10 +1242,7 @@ export class RequestsService {
   ): Promise<RequestEntity> {
     const linked = await this.vote(requestId, actor);
 
-    linked.tags = this.uniqueValues([
-      ...(linked.tags ?? []),
-      ...(input.tags ?? []),
-    ]);
+    linked.tags = this.uniqueValues([...(linked.tags ?? []), ...(input.tags ?? [])]);
     linked.customerIds = this.uniqueValues([
       ...(linked.customerIds ?? []),
       ...(input.customerIds ?? []),
@@ -1314,11 +1310,8 @@ export class RequestsService {
     const now = new Date().toISOString();
     const mergeId = randomUUID();
 
-    target.votes += Math.max(1, source.votes);
-    target.tags = this.uniqueValues([
-      ...(target.tags ?? []),
-      ...(source.tags ?? []),
-    ]);
+    target.votes = (target.votes ?? 0) + Math.max(1, source.votes ?? 1);
+    target.tags = this.uniqueValues([...(target.tags ?? []), ...(source.tags ?? [])]);
     target.customerIds = this.uniqueValues([
       ...(target.customerIds ?? []),
       ...(source.customerIds ?? []),
@@ -1339,9 +1332,10 @@ export class RequestsService {
       sourceType: source.sourceType,
       sourceRef: source.sourceRef,
       summary: reason ?? 'Request merged into deduplicated target.',
-      similarityScore: similarityScore
-        ? Number(similarityScore.toFixed(4))
-        : undefined,
+      similarityScore:
+        similarityScore === undefined
+          ? undefined
+          : Number(similarityScore.toFixed(4)),
       linkedRequestId: target.id,
       mergedRequestId: source.id,
       decision: mode === 'auto' ? 'auto_merged' : 'manually_merged',
@@ -1459,6 +1453,131 @@ export class RequestsService {
     });
   }
 
+  private calculateTextSimilarity(a: string, b: string): number {
+    const normalize = (value: string) =>
+      value
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/gi, ' ')
+        .split(/\s+/)
+        .map((token) => token.trim())
+        .filter((token) => token.length >= 3);
+
+    const tokensA = new Set(normalize(a));
+    const tokensB = new Set(normalize(b));
+
+    if (tokensA.size === 0 || tokensB.size === 0) {
+      return 0;
+    }
+
+    let intersection = 0;
+    for (const token of tokensA) {
+      if (tokensB.has(token)) {
+        intersection += 1;
+      }
+    }
+
+    const unionSize = new Set([...tokensA, ...tokensB]).size;
+    return unionSize === 0 ? 0 : intersection / unionSize;
+  }
+
+  private async createRaw(
+    input: CreateRequestInput,
+    actor: {
+      id: string;
+      organizationId: string;
+    },
+  ): Promise<RequestEntity> {
+    const now = new Date().toISOString();
+    const status = input.status ?? RequestStatus.New;
+    const sourceType = input.sourceType ?? RequestSourceType.Manual;
+    const feedbackIds = this.uniqueValues(input.feedbackIds);
+    const customerIds = this.uniqueValues(input.customerIds);
+
+    if (this.feedbackService) {
+      await this.feedbackService.ensureExists(
+        feedbackIds,
+        actor.organizationId,
+      );
+    }
+
+    await this.ensureCustomersExist(customerIds, actor.organizationId);
+
+    const request: RequestEntity = {
+      id: randomUUID(),
+      workspaceId: actor.organizationId,
+      title: input.title,
+      description: input.description,
+      feedbackIds,
+      customerIds,
+      problems: this.uniqueValues(input.problems),
+      solutions: this.uniqueValues(input.solutions),
+      product: input.product?.trim() || undefined,
+      functionality: input.functionality?.trim() || undefined,
+      status,
+      createdBy: actor.id,
+      createdAt: now,
+      updatedAt: now,
+
+      // Legacy compatibility fields.
+      organizationId: actor.organizationId,
+      boardId: input.boardId,
+      votes: 1,
+      tags: this.uniqueValues(input.tags),
+      companyIds: this.uniqueValues(input.companyIds),
+      sourceType,
+      sourceRef: input.sourceRef,
+      ingestedAt: sourceType === RequestSourceType.Manual ? undefined : now,
+      publicSubmitterName: input.publicSubmitterName,
+      publicSubmitterEmail: input.publicSubmitterEmail?.trim().toLowerCase(),
+      mergedRequestIds: [],
+      deduplicationEvidence: [],
+      mergeHistory: [],
+      statusHistory: [
+        {
+          from: null,
+          to: status,
+          changedBy: actor.id,
+          changedAt: now,
+        },
+      ],
+    };
+
+    await this.requestsRepository.insert(request);
+
+    this.domainEventsService.publish({
+      name: 'request.created',
+      occurredAt: now,
+      actorId: actor.id,
+      organizationId: actor.organizationId,
+      payload: {
+        requestId: request.id,
+        status: request.status,
+        feedbackIds: request.feedbackIds,
+      },
+    });
+
+    return request;
+  }
+
+  private async ensureCustomersExist(
+    customerIds: string[],
+    organizationId: string,
+  ): Promise<void> {
+    if (customerIds.length === 0) {
+      return;
+    }
+
+    const validations = customerIds.map(async (customerId) => {
+      try {
+        await this.customersService.findOneById(customerId, organizationId);
+      } catch {
+        throw new BadRequestException('One or more customerIds are invalid.');
+      }
+    });
+
+    await Promise.all(validations);
+  }
+
   private async findById(
     requestId: string,
     organizationId: string,
@@ -1501,33 +1620,6 @@ export class RequestsService {
     }
 
     return result;
-  }
-
-  private calculateTextSimilarity(a: string, b: string): number {
-    const normalize = (value: string) =>
-      value
-        .toLowerCase()
-        .replace(/[^a-z0-9\s]/gi, ' ')
-        .split(/\s+/)
-        .map((token) => token.trim())
-        .filter((token) => token.length >= 3);
-
-    const tokensA = new Set(normalize(a));
-    const tokensB = new Set(normalize(b));
-
-    if (tokensA.size === 0 || tokensB.size === 0) {
-      return 0;
-    }
-
-    let intersection = 0;
-    for (const token of tokensA) {
-      if (tokensB.has(token)) {
-        intersection += 1;
-      }
-    }
-
-    const unionSize = new Set([...tokensA, ...tokensB]).size;
-    return unionSize === 0 ? 0 : intersection / unionSize;
   }
 
   private async insertComment(comment: RequestCommentEntity): Promise<void> {

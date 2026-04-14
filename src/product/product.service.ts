@@ -7,7 +7,7 @@ import { CustomersService } from '../customers/customers.service';
 import type { RequestEntity } from '../requests/entities/request.entity';
 import { RequestStatus } from '../requests/entities/request-status.enum';
 import { PrioritizationService } from '../prioritization/prioritization.service';
-import { RequestsService } from '../requests/requests.service';
+import { RequestsService } from '../requests';
 import type { CreateFeatureInput } from './dto/create-feature.schema';
 import type { CreateInitiativeInput } from './dto/create-initiative.schema';
 import type { QueryFeaturesInput } from './dto/query-features.schema';

@@ -4,6 +4,7 @@ import { CompaniesModule } from '../companies/companies.module';
 import { AccessControlModule } from '../common/auth/access-control.module';
 import { DomainEventsModule } from '../common/events/domain-events.module';
 import { CustomersModule } from '../customers/customers.module';
+import { FeedbackModule } from '../feedback/feedback.module';
 import { UsersModule } from '../users/users.module';
 import { RequestsController } from './requests.controller';
 import { MongoRequestCommentsRepository } from './repositories/mongo-request-comments.repository';
@@ -24,6 +25,7 @@ import { RequestsService } from './requests.service';
     UsersModule,
     CustomersModule,
     CompaniesModule,
+    FeedbackModule,
     MongooseModule.forFeature([
       {
         name: RequestModel.name,

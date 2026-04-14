@@ -10,7 +10,7 @@ import { CompaniesService } from '../companies/companies.service';
 import type { CreateCustomerInput } from './dto/create-customer.schema';
 import type { QueryCustomersInput } from './dto/query-customers.schema';
 import type { UpdateCustomerInput } from './dto/update-customer.schema';
-import { CustomerEntity } from './entities/customer.entity';
+import type { CustomerEntity } from './entities/customer.entity';
 import { CustomersRepository } from './repositories/customers.repository';
 
 export interface PaginatedCustomersResult {
@@ -46,6 +46,7 @@ export class CustomersService {
     const now = new Date().toISOString();
     const customer: CustomerEntity = {
       id: randomUUID(),
+      workspaceId: actor.organizationId,
       name: input.name,
       email: normalizedEmail,
       companyId: input.companyId,

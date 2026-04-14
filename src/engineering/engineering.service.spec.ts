@@ -286,4 +286,108 @@ describe('EngineeringService', () => {
     );
     expect(afterDone.status).toBe(FeatureStatus.Done);
   });
+
+  it('should execute full feature to task to sprint flow with progress and traceability', async () => {
+    const request = await requestsService.create(
+      {
+        title: 'Need squad-level export filters',
+        description: 'Enterprise teams need export by squad.',
+      },
+      actor,
+    );
+
+    const feature = await productService.createFeature(
+      {
+        title: 'Squad export filters',
+        description: 'Allow export segmented by squad.',
+        requestIds: [request.id],
+      },
+      actor,
+    );
+
+    const sprint = await engineeringService.createSprint(
+      {
+        name: 'Sprint Flow Validation',
+        startDate: '2026-05-01T00:00:00.000Z',
+        endDate: '2026-05-15T00:00:00.000Z',
+      },
+      actor,
+    );
+
+    const taskA = await engineeringService.createTask(
+      {
+        title: 'Implement endpoint',
+        description: 'Create export endpoint with squad filter.',
+        featureId: feature.id,
+        sprintId: sprint.id,
+      },
+      actor,
+    );
+
+    const taskB = await engineeringService.createTask(
+      {
+        title: 'Add UI controls',
+        description: 'Expose squad filter in export modal.',
+        featureId: feature.id,
+      },
+      actor,
+    );
+
+    await engineeringService.assignTaskToSprint(taskB.id, sprint.id, actor);
+
+    const beforeExecutionProgress = await engineeringService.getSprintProgress(
+      sprint.id,
+      actor.organizationId,
+    );
+    expect(beforeExecutionProgress.totals.totalTasks).toBe(2);
+    expect(beforeExecutionProgress.totals.todoTasks).toBe(2);
+    expect(beforeExecutionProgress.totals.completionRate).toBe(0);
+
+    await engineeringService.updateTask(
+      taskA.id,
+      {
+        status: TaskStatus.InProgress,
+      },
+      actor,
+    );
+
+    const traceability = await engineeringService.getTaskTraceability(
+      taskA.id,
+      actor.organizationId,
+    );
+    expect(traceability.task.id).toBe(taskA.id);
+    expect(traceability.traceability.feature.id).toBe(feature.id);
+    expect(traceability.traceability.requests.map((item) => item.id)).toContain(
+      request.id,
+    );
+
+    await engineeringService.updateTask(
+      taskA.id,
+      {
+        status: TaskStatus.Done,
+      },
+      actor,
+    );
+
+    await engineeringService.updateTask(
+      taskB.id,
+      {
+        status: TaskStatus.Done,
+      },
+      actor,
+    );
+
+    const afterExecutionProgress = await engineeringService.getSprintProgress(
+      sprint.id,
+      actor.organizationId,
+    );
+    expect(afterExecutionProgress.totals.doneTasks).toBe(2);
+    expect(afterExecutionProgress.totals.completionRate).toBe(100);
+
+    const finalFeature = await productService.findFeatureById(
+      feature.id,
+      actor.organizationId,
+    );
+    expect(finalFeature.status).toBe(FeatureStatus.Done);
+  });
 });

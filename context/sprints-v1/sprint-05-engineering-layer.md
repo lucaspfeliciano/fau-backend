@@ -73,7 +73,7 @@ No final da sprint, Engineering consegue:
 - [x] Documentar fluxo feature -> task -> sprint no Swagger.
 - [x] Concluir testes unitários de tasks e fechamento de sprint.
 - [x] Concluir testes de integração do fluxo completo de execução.
-- [ ] Validar critérios de aceite em review da sprint.
+- [x] Validar critérios de aceite em review da sprint.
 
 ## Critérios de Aceite
 

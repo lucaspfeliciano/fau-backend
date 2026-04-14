@@ -71,7 +71,7 @@ No final da sprint, CS/Sales consegue:
 - [x] Documentar payloads e respostas no Swagger.
 - [x] Concluir testes unitários de parser e deduplicação.
 - [x] Concluir testes de integração para cenários de similaridade alta e baixa.
-- [ ] Validar critérios de aceite em review da sprint.
+- [x] Validar critérios de aceite em review da sprint.
 
 ## Critérios de Aceite
 

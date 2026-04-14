@@ -41,15 +41,25 @@ export interface RequestMergeHistoryEntry {
 
 export interface RequestEntity {
   id: string;
+  workspaceId: string;
   title: string;
   description: string;
-  boardId?: string;
+  feedbackIds: string[];
+  customerIds: string[];
+  problems: string[];
+  solutions: string[];
+  product?: string;
+  functionality?: string;
   status: RequestStatus;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+
+  // Legacy compatibility fields. They are not part of the Sprint 1 core model.
+  organizationId?: string;
+  boardId?: string;
   votes: number;
   tags: string[];
-  createdBy: string;
-  organizationId: string;
-  customerIds: string[];
   companyIds: string[];
   sourceType: RequestSourceType;
   sourceRef?: string;
@@ -61,7 +71,5 @@ export interface RequestEntity {
   deduplicationEvidence?: RequestDeduplicationEvidenceEntry[];
   mergeHistory?: RequestMergeHistoryEntry[];
   statusHistory: RequestStatusHistoryEntry[];
-  createdAt: string;
-  updatedAt: string;
   deletedAt?: string;
 }

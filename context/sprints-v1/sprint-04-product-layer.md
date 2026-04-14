@@ -73,7 +73,7 @@ No final da sprint, Product consegue:
 - [x] Documentar fluxo request -> feature no Swagger.
 - [x] Concluir testes unitários de priorização e vínculo.
 - [x] Concluir testes de integração request -> feature -> initiative.
-- [ ] Validar critérios de aceite em review da sprint.
+- [x] Validar critérios de aceite em review da sprint.
 
 ## Critérios de Aceite
 

@@ -8,6 +8,7 @@ import {
   Post,
   Query,
   UseGuards,
+  ValidationPipe,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -17,34 +18,19 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
-  ApiQuery,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import type { AuthenticatedUser } from '../common/auth/authenticated-user.interface';
 import { CurrentUser } from '../common/auth/current-user.decorator';
 import { JwtAuthGuard } from '../common/auth/jwt-auth.guard';
 import { Role } from '../common/auth/role.enum';
 import { Roles } from '../common/auth/roles.decorator';
 import { RolesGuard } from '../common/auth/roles.guard';
-import { ZodValidationPipe } from '../common/validation/zod-validation.pipe';
-import { CreateRequestCommentSchema } from './dto/create-request-comment.schema';
-import { CreateRequestSchema } from './dto/create-request.schema';
-import { FindSimilarRequestsSchema } from './dto/find-similar-requests.schema';
-import { MergeRequestsSchema } from './dto/merge-requests.schema';
-import { QueryDeduplicationAuditSchema } from './dto/query-deduplication-audit.schema';
-import { QueryRequestsSchema } from './dto/query-requests.schema';
-import { RevertMergeSchema } from './dto/revert-merge.schema';
-import { UpdateRequestSchema } from './dto/update-request.schema';
+import { CreateRequestDto } from './dto/create-request.dto';
+import { QueryRequestsDto } from './dto/query-requests.dto';
+import { UpdateRequestDto } from './dto/update-request.dto';
 import { RequestsService } from './requests.service';
-import type { AuthenticatedUser } from '../common/auth/authenticated-user.interface';
-import type { CreateRequestCommentInput } from './dto/create-request-comment.schema';
-import type { CreateRequestInput } from './dto/create-request.schema';
-import type { FindSimilarRequestsInput } from './dto/find-similar-requests.schema';
-import type { MergeRequestsInput } from './dto/merge-requests.schema';
-import type { QueryDeduplicationAuditInput } from './dto/query-deduplication-audit.schema';
-import type { QueryRequestsInput } from './dto/query-requests.schema';
-import type { RevertMergeInput } from './dto/revert-merge.schema';
-import type { UpdateRequestInput } from './dto/update-request.schema';
 
 @ApiTags('Requests')
 @ApiBearerAuth()
@@ -59,49 +45,30 @@ export class RequestsController {
   @ApiBody({
     schema: {
       example: {
-        title: 'Need dark mode',
-        description: 'Customers requested dark mode in dashboard.',
-        tags: ['ui', 'dashboard'],
-        sourceType: 'manual',
+        title: 'Exportar dashboard por squad',
+        description:
+          'Consolidacao do pedido de clientes enterprise para filtrar por squad.',
+        feedbackIds: ['feedback-1'],
+        customerIds: ['customer-1', 'customer-2'],
+        problems: ['Times nao conseguem exportar por squad no formato atual.'],
+        solutions: ['Adicionar filtro por squad no modal de exportacao.'],
+        product: 'Analytics',
+        functionality: 'Dashboard Export',
+        status: 'new',
       },
     },
   })
-  @ApiCreatedResponse({
-    description:
-      'Request created or deduplicated according to intelligent policy.',
-  })
+  @ApiCreatedResponse({ description: 'Request created successfully.' })
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async create(
     @CurrentUser() user: AuthenticatedUser,
-    @Body(new ZodValidationPipe(CreateRequestSchema)) body: CreateRequestInput,
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    body: CreateRequestDto,
   ) {
-    return this.requestsService.createWithIntelligentDeduplication(body, user);
-  }
-
-  @Post('similar')
-  @Roles(Role.Admin, Role.Editor)
-  @ApiOperation({ summary: 'Find similar requests before creation' })
-  @ApiBody({
-    schema: {
-      example: {
-        title: 'Melhorar dashboard de equipe',
-        details: 'Cliente pediu dashboard por equipe com filtro por squad.',
-        boardId: 'board-1',
-      },
-    },
-  })
-  @ApiCreatedResponse({
-    description: 'Similar requests returned successfully.',
-  })
-  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  findSimilar(
-    @CurrentUser() user: AuthenticatedUser,
-    @Body(new ZodValidationPipe(FindSimilarRequestsSchema))
-    body: FindSimilarRequestsInput,
-  ) {
-    return this.requestsService.findSimilarRequests(user.organizationId, body);
+    return {
+      request: await this.requestsService.create(body, user),
+    };
   }
 
   @Get()
@@ -110,96 +77,10 @@ export class RequestsController {
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async list(
     @CurrentUser() user: AuthenticatedUser,
-    @Query(new ZodValidationPipe(QueryRequestsSchema))
-    query: QueryRequestsInput,
+    @Query(new ValidationPipe({ whitelist: true, transform: true }))
+    query: QueryRequestsDto,
   ) {
     return this.requestsService.list(query, user.organizationId);
-  }
-
-  @Get('deduplication/metrics')
-  @Roles(Role.Admin, Role.Editor)
-  @ApiOperation({ summary: 'Get deduplication operational metrics' })
-  @ApiOkResponse({ description: 'Returns deduplication metrics.' })
-  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  getDeduplicationMetrics(@CurrentUser() user: AuthenticatedUser) {
-    return this.requestsService.getDeduplicationMetrics(user.organizationId);
-  }
-
-  @Get('deduplication/audit')
-  @Roles(Role.Admin, Role.Editor)
-  @ApiOperation({ summary: 'List recent deduplication audit events' })
-  @ApiQuery({ name: 'limit', required: false, example: 50 })
-  @ApiOkResponse({ description: 'Returns deduplication audit trail.' })
-  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  listDeduplicationAudit(
-    @CurrentUser() user: AuthenticatedUser,
-    @Query(new ZodValidationPipe(QueryDeduplicationAuditSchema))
-    query: QueryDeduplicationAuditInput,
-  ) {
-    return {
-      items: this.requestsService.listDeduplicationAuditTrail(
-        user.organizationId,
-        query.limit,
-      ),
-    };
-  }
-
-  @Post('deduplication/merge')
-  @Roles(Role.Admin, Role.Editor)
-  @ApiOperation({ summary: 'Manually merge duplicated requests' })
-  @ApiBody({
-    schema: {
-      example: {
-        sourceRequestId: 'request-dup-1',
-        targetRequestId: 'request-main-1',
-        reason: 'Mesmo problema reportado por canais diferentes.',
-      },
-    },
-  })
-  @ApiCreatedResponse({ description: 'Merge applied successfully.' })
-  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  async manualMerge(
-    @CurrentUser() user: AuthenticatedUser,
-    @Body(new ZodValidationPipe(MergeRequestsSchema)) body: MergeRequestsInput,
-  ) {
-    return {
-      request: await this.requestsService.manualMerge(
-        body.sourceRequestId,
-        body.targetRequestId,
-        user,
-        body.reason,
-      ),
-    };
-  }
-
-  @Post('deduplication/revert-merge')
-  @Roles(Role.Admin, Role.Editor)
-  @ApiOperation({ summary: 'Revert a previous merge decision' })
-  @ApiBody({
-    schema: {
-      example: {
-        sourceRequestId: 'request-dup-1',
-        targetRequestId: 'request-main-1',
-        reason: 'Falso positivo detectado na revisao manual.',
-      },
-    },
-  })
-  @ApiCreatedResponse({ description: 'Merge reversion applied successfully.' })
-  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  async revertMerge(
-    @CurrentUser() user: AuthenticatedUser,
-    @Body(new ZodValidationPipe(RevertMergeSchema)) body: RevertMergeInput,
-  ) {
-    return this.requestsService.revertMerge(
-      body.sourceRequestId,
-      body.targetRequestId,
-      user,
-      body.reason,
-    );
   }
 
   @Get(':id')
@@ -216,57 +97,6 @@ export class RequestsController {
     };
   }
 
-  @Get(':id/updates')
-  @ApiOperation({ summary: 'Get request updates history' })
-  @ApiParam({ name: 'id', description: 'Request id' })
-  @ApiOkResponse({ description: 'Returns request updates history.' })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  async getUpdates(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
-  ) {
-    return this.requestsService.getRequestUpdates(id, user.organizationId);
-  }
-
-  @Post(':id/comments')
-  @Roles(Role.Admin, Role.Editor)
-  @ApiOperation({ summary: 'Add comment to request timeline' })
-  @ApiParam({ name: 'id', description: 'Request id' })
-  @ApiBody({
-    schema: {
-      example: {
-        comment: 'Cliente confirmou prioridade alta para o proximo ciclo.',
-      },
-    },
-  })
-  @ApiCreatedResponse({ description: 'Comment added successfully.' })
-  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  async addComment(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
-    @Body(new ZodValidationPipe(CreateRequestCommentSchema))
-    body: CreateRequestCommentInput,
-  ) {
-    return {
-      comment: await this.requestsService.addComment(id, body, user),
-    };
-  }
-
-  @Get(':id/comments')
-  @ApiOperation({ summary: 'List request comments' })
-  @ApiParam({ name: 'id', description: 'Request id' })
-  @ApiOkResponse({ description: 'Returns request comments list.' })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  async listComments(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
-  ) {
-    return {
-      items: await this.requestsService.listComments(id, user.organizationId),
-    };
-  }
-
   @Patch(':id')
   @Roles(Role.Admin, Role.Editor)
   @ApiOperation({ summary: 'Update request by id' })
@@ -274,8 +104,10 @@ export class RequestsController {
   @ApiBody({
     schema: {
       example: {
-        status: 'Planned',
-        tags: ['ui', 'priority-high'],
+        status: 'analyzing',
+        feedbackIds: ['feedback-1', 'feedback-2'],
+        problems: ['O fluxo atual gera retrabalho no time de CS.'],
+        solutions: ['Padronizar exportacao por squad e periodo.'],
       },
     },
   })
@@ -285,39 +117,11 @@ export class RequestsController {
   async update(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
-    @Body(new ZodValidationPipe(UpdateRequestSchema)) body: UpdateRequestInput,
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    body: UpdateRequestDto,
   ) {
     return {
       request: await this.requestsService.update(id, body, user),
-    };
-  }
-
-  @Delete(':id')
-  @Roles(Role.Admin, Role.Editor)
-  @ApiOperation({ summary: 'Soft delete request by id' })
-  @ApiParam({ name: 'id', description: 'Request id' })
-  @ApiOkResponse({ description: 'Request archived successfully.' })
-  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  async archive(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
-  ) {
-    return {
-      request: await this.requestsService.archive(id, user),
-    };
-  }
-
-  @Post(':id/vote')
-  @Roles(Role.Admin, Role.Editor)
-  @ApiOperation({ summary: 'Increment request votes' })
-  @ApiParam({ name: 'id', description: 'Request id' })
-  @ApiCreatedResponse({ description: 'Vote registered successfully.' })
-  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  async vote(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return {
-      request: await this.requestsService.vote(id, user),
     };
   }
 
@@ -354,42 +158,6 @@ export class RequestsController {
   ) {
     return {
       request: await this.requestsService.unlinkCustomer(id, customerId, user),
-    };
-  }
-
-  @Post(':id/companies/:companyId')
-  @Roles(Role.Admin, Role.Editor)
-  @ApiOperation({ summary: 'Link company to request' })
-  @ApiParam({ name: 'id', description: 'Request id' })
-  @ApiParam({ name: 'companyId', description: 'Company id' })
-  @ApiCreatedResponse({ description: 'Company linked to request.' })
-  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  async linkCompany(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
-    @Param('companyId') companyId: string,
-  ) {
-    return {
-      request: await this.requestsService.linkCompany(id, companyId, user),
-    };
-  }
-
-  @Delete(':id/companies/:companyId')
-  @Roles(Role.Admin, Role.Editor)
-  @ApiOperation({ summary: 'Unlink company from request' })
-  @ApiParam({ name: 'id', description: 'Request id' })
-  @ApiParam({ name: 'companyId', description: 'Company id' })
-  @ApiOkResponse({ description: 'Company unlinked from request.' })
-  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  async unlinkCompany(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
-    @Param('companyId') companyId: string,
-  ) {
-    return {
-      request: await this.requestsService.unlinkCompany(id, companyId, user),
     };
   }
 }

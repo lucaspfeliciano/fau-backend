@@ -12,29 +12,44 @@ export class CustomersRepository {
   ) {}
 
   async insert(customer: CustomerEntity): Promise<void> {
-    await this.customerModel.create(customer);
+    await this.customerModel.create({
+      ...customer,
+      organizationId: customer.organizationId ?? customer.workspaceId,
+    });
   }
 
   async update(customer: CustomerEntity): Promise<void> {
+    const normalizedCustomer: CustomerEntity = {
+      ...customer,
+      organizationId: customer.organizationId ?? customer.workspaceId,
+    };
+
     await this.customerModel
       .updateOne(
         {
           id: customer.id,
-          organizationId: customer.organizationId,
+          $or: [
+            { workspaceId: customer.workspaceId },
+            { organizationId: customer.workspaceId },
+          ],
         },
         {
-          $set: customer,
+          $set: normalizedCustomer,
         },
       )
       .exec();
   }
 
   async listByOrganization(organizationId: string): Promise<CustomerEntity[]> {
-    return this.customerModel
-      .find({ organizationId })
+    const docs = await this.customerModel
+      .find({
+        $or: [{ workspaceId: organizationId }, { organizationId }],
+      })
       .sort({ updatedAt: -1 })
       .lean<CustomerEntity[]>()
       .exec();
+
+    return docs.map((doc) => this.normalize(doc, organizationId));
   }
 
   async findById(
@@ -42,11 +57,18 @@ export class CustomersRepository {
     organizationId: string,
   ): Promise<CustomerEntity | undefined> {
     const doc = await this.customerModel
-      .findOne({ id, organizationId })
+      .findOne({
+        id,
+        $or: [{ workspaceId: organizationId }, { organizationId }],
+      })
       .lean<CustomerEntity>()
       .exec();
 
-    return doc ?? undefined;
+    if (!doc) {
+      return undefined;
+    }
+
+    return this.normalize(doc, organizationId);
   }
 
   async findByEmail(
@@ -56,11 +78,29 @@ export class CustomersRepository {
     const doc = await this.customerModel
       .findOne({
         email,
-        organizationId,
+        $or: [{ workspaceId: organizationId }, { organizationId }],
       })
       .lean<CustomerEntity>()
       .exec();
 
-    return doc ?? undefined;
+    if (!doc) {
+      return undefined;
+    }
+
+    return this.normalize(doc, organizationId);
+  }
+
+  private normalize(
+    customer: CustomerEntity,
+    organizationId: string,
+  ): CustomerEntity {
+    const workspaceId =
+      customer.workspaceId ?? customer.organizationId ?? organizationId;
+
+    return {
+      ...customer,
+      workspaceId,
+      organizationId: customer.organizationId ?? workspaceId,
+    };
   }
 }

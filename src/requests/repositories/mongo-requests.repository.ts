@@ -13,14 +13,22 @@ export class MongoRequestsRepository implements RequestsRepository {
   ) {}
 
   async insert(request: RequestEntity): Promise<void> {
-    await this.requestModel.create(request);
+    await this.requestModel.create({
+      ...request,
+      organizationId: request.organizationId ?? request.workspaceId,
+    });
   }
 
   async update(request: RequestEntity): Promise<void> {
+    const normalizedRequest: Record<string, unknown> = {
+      ...request,
+      organizationId: request.organizationId ?? request.workspaceId,
+    };
+
     const setPayload: Record<string, unknown> = {};
     const unsetPayload: Record<string, ''> = {};
 
-    for (const [key, value] of Object.entries(request)) {
+    for (const [key, value] of Object.entries(normalizedRequest)) {
       if (value === undefined) {
         unsetPayload[key] = '';
         continue;
@@ -41,7 +49,10 @@ export class MongoRequestsRepository implements RequestsRepository {
       .updateOne(
         {
           id: request.id,
-          organizationId: request.organizationId,
+          $or: [
+            { workspaceId: request.workspaceId },
+            { organizationId: request.workspaceId },
+          ],
         },
         updateOperation,
       )
@@ -50,11 +61,13 @@ export class MongoRequestsRepository implements RequestsRepository {
 
   async listByOrganization(organizationId: string): Promise<RequestEntity[]> {
     const docs = await this.requestModel
-      .find({ organizationId })
+      .find({
+        $or: [{ workspaceId: organizationId }, { organizationId }],
+      })
       .lean<RequestEntity[]>()
       .exec();
 
-    return docs;
+    return docs.map((doc) => this.normalize(doc, organizationId));
   }
 
   async queryByOrganization(
@@ -64,13 +77,14 @@ export class MongoRequestsRepository implements RequestsRepository {
       limit: number;
       includeArchived: boolean;
       status?: string;
+      customerId?: string;
       boardId?: string;
       tag?: string;
       search?: string;
     },
   ): Promise<{ items: RequestEntity[]; total: number }> {
     const filter: Record<string, unknown> = {
-      organizationId,
+      $or: [{ workspaceId: organizationId }, { organizationId }],
     };
 
     if (!options.includeArchived) {
@@ -79,6 +93,10 @@ export class MongoRequestsRepository implements RequestsRepository {
 
     if (options.status) {
       filter.status = options.status;
+    }
+
+    if (options.customerId) {
+      filter.customerIds = options.customerId;
     }
 
     if (options.boardId) {
@@ -99,7 +117,17 @@ export class MongoRequestsRepository implements RequestsRepository {
         $regex: this.escapeRegex(options.search),
         $options: 'i',
       };
-      filter.$or = [{ title: searchRegex }, { description: searchRegex }];
+      filter.$or = [
+        { title: searchRegex },
+        { description: searchRegex },
+        { product: searchRegex },
+        { functionality: searchRegex },
+        { problems: searchRegex },
+        { solutions: searchRegex },
+      ];
+      filter.$and = [
+        { $or: [{ workspaceId: organizationId }, { organizationId }] },
+      ];
     }
 
     const total = await this.requestModel.countDocuments(filter).exec();
@@ -112,7 +140,7 @@ export class MongoRequestsRepository implements RequestsRepository {
       .exec();
 
     return {
-      items: docs,
+      items: docs.map((doc) => this.normalize(doc, organizationId)),
       total,
     };
   }
@@ -124,7 +152,7 @@ export class MongoRequestsRepository implements RequestsRepository {
   ): Promise<RequestEntity | undefined> {
     const filter: Record<string, unknown> = {
       id: requestId,
-      organizationId,
+      $or: [{ workspaceId: organizationId }, { organizationId }],
     };
 
     if (!includeArchived) {
@@ -136,7 +164,35 @@ export class MongoRequestsRepository implements RequestsRepository {
       .lean<RequestEntity>()
       .exec();
 
-    return doc ?? undefined;
+    if (!doc) {
+      return undefined;
+    }
+
+    return this.normalize(doc, organizationId);
+  }
+
+  private normalize(
+    request: RequestEntity,
+    organizationId: string,
+  ): RequestEntity {
+    const workspaceId =
+      request.workspaceId ?? request.organizationId ?? organizationId;
+
+    return {
+      ...request,
+      workspaceId,
+      organizationId: request.organizationId ?? workspaceId,
+      feedbackIds: request.feedbackIds ?? [],
+      customerIds: request.customerIds ?? [],
+      problems: request.problems ?? [],
+      solutions: request.solutions ?? [],
+      tags: request.tags ?? [],
+      companyIds: request.companyIds ?? [],
+      votes: request.votes ?? 0,
+      mergedRequestIds: request.mergedRequestIds ?? [],
+      deduplicationEvidence: request.deduplicationEvidence ?? [],
+      mergeHistory: request.mergeHistory ?? [],
+    };
   }
 
   private escapeRegex(value: string): string {

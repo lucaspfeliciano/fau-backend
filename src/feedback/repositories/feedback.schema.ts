@@ -1,0 +1,39 @@
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { HydratedDocument } from 'mongoose';
+
+export type FeedbackDocument = HydratedDocument<FeedbackModel>;
+
+@Schema({ collection: 'feedback', versionKey: false })
+export class FeedbackModel {
+  @Prop({ type: String, required: true, unique: true })
+  id!: string;
+
+  @Prop({ type: String, required: true, index: true })
+  workspaceId!: string;
+
+  @Prop({ type: String, required: true })
+  title!: string;
+
+  @Prop({ type: String, required: true })
+  description!: string;
+
+  @Prop({ type: String, required: true })
+  source!: string;
+
+  @Prop({ type: String })
+  publicSubmitterName?: string;
+
+  @Prop({ type: String })
+  publicSubmitterEmail?: string;
+
+  @Prop({ type: String, index: true })
+  customerId?: string;
+
+  @Prop({ type: String, required: true, index: true })
+  createdAt!: string;
+}
+
+export const FeedbackSchema = SchemaFactory.createForClass(FeedbackModel);
+
+FeedbackSchema.index({ workspaceId: 1, createdAt: -1 });
+FeedbackSchema.index({ workspaceId: 1, source: 1, createdAt: -1 });

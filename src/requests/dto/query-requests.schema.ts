@@ -36,6 +36,7 @@ export const QueryRequestsSchema = z.object({
   limit: toPositiveInt(20, 100),
   boardId: z.string().trim().min(1).max(120).optional(),
   status: z.nativeEnum(RequestStatus).optional(),
+  customerId: z.string().trim().min(1).max(120).optional(),
   tag: z.string().trim().min(1).max(30).optional(),
   search: z.string().trim().min(1).max(120).optional(),
   includeArchived: toBoolean,

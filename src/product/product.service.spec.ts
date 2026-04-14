@@ -14,6 +14,7 @@ import type { AuthenticatedUser } from '../common/auth/authenticated-user.interf
 import { Role } from '../common/auth/role.enum';
 import { FeatureStatus } from './entities/feature-status.enum';
 import type { FeatureEntity } from './entities/feature.entity';
+import type { InitiativeEntity } from './entities/initiative.entity';
 import { ProductPriority } from './entities/product-priority.enum';
 import { FeaturesRepository } from './repositories/features.repository';
 import { InitiativesRepository } from './repositories/initiatives.repository';
@@ -25,6 +26,7 @@ describe('ProductService', () => {
   let companiesService: Pick<CompaniesService, 'create' | 'findOneById'>;
   let customersService: Pick<CustomersService, 'create' | 'findOneById'>;
   let featuresStore: Map<string, FeatureEntity>;
+  let initiativesStore: Map<string, InitiativeEntity>;
 
   const actor: AuthenticatedUser = {
     id: 'user-1',
@@ -36,6 +38,7 @@ describe('ProductService', () => {
 
   beforeEach(async () => {
     featuresStore = new Map<string, FeatureEntity>();
+    initiativesStore = new Map<string, InitiativeEntity>();
     const companies = new Map<string, CompanyEntity>();
     const customers = new Map<string, CustomerEntity>();
 
@@ -74,6 +77,7 @@ describe('ProductService', () => {
         const now = new Date().toISOString();
         const customer: CustomerEntity = {
           id: `customer-${customers.size + 1}`,
+          workspaceId: currentActor.organizationId,
           name: input.name,
           email: input.email.toLowerCase(),
           companyId: input.companyId,
@@ -96,7 +100,7 @@ describe('ProductService', () => {
 
     const featuresRepositoryMock: Pick<
       FeaturesRepository,
-      'insert' | 'update' | 'findById' | 'listByOrganization'
+      'insert' | 'update' | 'findById' | 'findByIds' | 'listByOrganization'
     > = {
       async insert(feature) {
         featuresStore.set(feature.id, { ...feature });
@@ -111,6 +115,14 @@ describe('ProductService', () => {
         }
         return feature;
       },
+      async findByIds(ids, organizationId) {
+        return ids
+          .map((id) => featuresStore.get(id))
+          .filter(
+            (feature): feature is FeatureEntity =>
+              Boolean(feature && feature.organizationId === organizationId),
+          );
+      },
       async listByOrganization(organizationId) {
         return [...featuresStore.values()].filter(
           (feature) => feature.organizationId === organizationId,
@@ -122,13 +134,24 @@ describe('ProductService', () => {
       InitiativesRepository,
       'insert' | 'update' | 'findById' | 'listByOrganization'
     > = {
-      async insert() {},
-      async update() {},
-      async findById() {
-        return undefined;
+      async insert(initiative) {
+        initiativesStore.set(initiative.id, { ...initiative });
       },
-      async listByOrganization() {
-        return [];
+      async update(initiative) {
+        initiativesStore.set(initiative.id, { ...initiative });
+      },
+      async findById(id, organizationId) {
+        const initiative = initiativesStore.get(id);
+        if (!initiative || initiative.organizationId !== organizationId) {
+          return undefined;
+        }
+
+        return initiative;
+      },
+      async listByOrganization(organizationId) {
+        return [...initiativesStore.values()].filter(
+          (initiative) => initiative.organizationId === organizationId,
+        );
       },
     };
 
@@ -278,5 +301,48 @@ describe('ProductService', () => {
     expect(traceability.impactedCompanies).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: company.id })]),
     );
+  });
+
+  it('should execute request to feature to initiative flow', async () => {
+    const request = await requestsService.create(
+      {
+        title: 'Need segmented exports',
+        description: 'Enterprise accounts need export per squad.',
+      },
+      actor,
+    );
+
+    const initiative = await productService.createInitiative(
+      {
+        title: 'Analytics evolution',
+        description: 'Consolidate export and visibility improvements.',
+      },
+      actor,
+    );
+
+    const feature = await productService.createFeature(
+      {
+        title: 'Segmented export',
+        description: 'Add export by squad and period.',
+        requestIds: [request.id],
+        initiativeId: initiative.id,
+      },
+      actor,
+    );
+
+    expect(feature.initiativeId).toBe(initiative.id);
+    expect(feature.requestIds).toContain(request.id);
+
+    const initiativeFeatures = await productService.getInitiativeFeatures(
+      initiative.id,
+      actor.organizationId,
+    );
+    expect(initiativeFeatures.map((item) => item.id)).toContain(feature.id);
+
+    const persistedInitiative = await productService.getInitiative(
+      initiative.id,
+      actor.organizationId,
+    );
+    expect(persistedInitiative.featureIds).toContain(feature.id);
   });
 });

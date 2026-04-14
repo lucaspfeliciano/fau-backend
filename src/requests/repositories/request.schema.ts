@@ -80,38 +80,63 @@ export class RequestModel {
   @Prop({ type: String, required: true, unique: true })
   id!: string;
 
+  @Prop({ type: String, required: true, index: true })
+  workspaceId!: string;
+
+  @Prop({ type: String, index: true })
+  organizationId?: string;
+
   @Prop({ type: String, required: true })
   title!: string;
 
   @Prop({ type: String, required: true })
   description!: string;
 
-  @Prop({ type: String, index: true })
-  boardId?: string;
-
-  @Prop({ type: String, required: true })
-  status!: string;
-
-  @Prop({ type: Number, required: true })
-  votes!: number;
-
   @Prop({ type: [String], default: [] })
-  tags!: string[];
-
-  @Prop({ type: String, required: true })
-  createdBy!: string;
-
-  @Prop({ type: String, required: true, index: true })
-  organizationId!: string;
+  feedbackIds!: string[];
 
   @Prop({ type: [String], default: [] })
   customerIds!: string[];
 
   @Prop({ type: [String], default: [] })
-  companyIds!: string[];
+  problems!: string[];
+
+  @Prop({ type: [String], default: [] })
+  solutions!: string[];
+
+  @Prop({ type: String })
+  product?: string;
+
+  @Prop({ type: String })
+  functionality?: string;
 
   @Prop({ type: String, required: true })
-  sourceType!: string;
+  status!: string;
+
+  @Prop({ type: String, required: true })
+  createdBy!: string;
+
+  @Prop({ type: String, required: true, index: true })
+  createdAt!: string;
+
+  @Prop({ type: String, required: true, index: true })
+  updatedAt!: string;
+
+  // Legacy compatibility fields.
+  @Prop({ type: String, index: true })
+  boardId?: string;
+
+  @Prop({ type: Number, default: 1 })
+  votes?: number;
+
+  @Prop({ type: [String], default: [] })
+  tags?: string[];
+
+  @Prop({ type: [String], default: [] })
+  companyIds?: string[];
+
+  @Prop({ type: String })
+  sourceType?: string;
 
   @Prop({ type: String })
   sourceRef?: string;
@@ -129,22 +154,16 @@ export class RequestModel {
   mergedIntoRequestId?: string;
 
   @Prop({ type: [String], default: [] })
-  mergedRequestIds!: string[];
+  mergedRequestIds?: string[];
 
   @Prop({ type: [RequestDeduplicationEvidenceModel], default: [] })
-  deduplicationEvidence!: RequestDeduplicationEvidenceModel[];
+  deduplicationEvidence?: RequestDeduplicationEvidenceModel[];
 
   @Prop({ type: [RequestMergeHistoryModel], default: [] })
-  mergeHistory!: RequestMergeHistoryModel[];
+  mergeHistory?: RequestMergeHistoryModel[];
 
   @Prop({ type: [RequestStatusHistoryModel], default: [] })
   statusHistory!: RequestStatusHistoryModel[];
-
-  @Prop({ type: String, required: true })
-  createdAt!: string;
-
-  @Prop({ type: String, required: true, index: true })
-  updatedAt!: string;
 
   @Prop({ type: String })
   deletedAt?: string;
@@ -152,11 +171,8 @@ export class RequestModel {
 
 export const RequestSchema = SchemaFactory.createForClass(RequestModel);
 
+RequestSchema.index({ workspaceId: 1, updatedAt: -1 });
+RequestSchema.index({ workspaceId: 1, status: 1, deletedAt: 1 });
+RequestSchema.index({ workspaceId: 1, boardId: 1, deletedAt: 1 });
+RequestSchema.index({ workspaceId: 1, mergedIntoRequestId: 1, deletedAt: 1 });
 RequestSchema.index({ organizationId: 1, updatedAt: -1 });
-RequestSchema.index({ organizationId: 1, status: 1, deletedAt: 1 });
-RequestSchema.index({ organizationId: 1, boardId: 1, deletedAt: 1 });
-RequestSchema.index({
-  organizationId: 1,
-  mergedIntoRequestId: 1,
-  deletedAt: 1,
-});

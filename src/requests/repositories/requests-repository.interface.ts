@@ -13,6 +13,7 @@ export interface RequestsRepository {
       limit: number;
       includeArchived: boolean;
       status?: string;
+      customerId?: string;
       boardId?: string;
       tag?: string;
       search?: string;

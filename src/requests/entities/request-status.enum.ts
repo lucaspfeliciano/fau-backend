@@ -1,6 +1,9 @@
 export enum RequestStatus {
-  Backlog = 'Backlog',
-  Planned = 'Planned',
-  InProgress = 'In Progress',
-  Completed = 'Completed',
+  New = 'new',
+  Analyzing = 'analyzing',
+  Defined = 'defined',
+  Planned = 'planned',
+  InProgress = 'in_progress',
+  Completed = 'completed',
+  Backlog = 'new',
 }
