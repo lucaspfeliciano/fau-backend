@@ -566,6 +566,64 @@ export class ProductService {
     return feature;
   }
 
+  async unlinkRequestFromFeature(
+    featureId: string,
+    requestId: string,
+    actor: AuthenticatedUser,
+  ): Promise<FeatureEntity> {
+    const feature = await this.findFeatureByIdOrFail(
+      featureId,
+      actor.organizationId,
+    );
+
+    if (!feature.requestIds.includes(requestId)) {
+      return feature;
+    }
+
+    feature.requestIds = feature.requestIds.filter((id) => id !== requestId);
+
+    const remainingRequests = await Promise.all(
+      feature.requestIds.map((id) =>
+        this.requestsService.findOneById(id, actor.organizationId),
+      ),
+    );
+
+    feature.requestSources = this.extractRequestSources(remainingRequests);
+
+    if (!this.prioritizationService) {
+      feature.priorityScore =
+        this.legacyCalculatePriorityScore(remainingRequests);
+
+      if (!feature.isPriorityManual) {
+        feature.priority = this.mapLegacyScoreToProductPriority(
+          feature.priorityScore,
+        );
+      }
+    }
+
+    feature.updatedAt = new Date().toISOString();
+    await this.featuresRepository.update(feature);
+
+    if (this.prioritizationService) {
+      await this.prioritizationService.syncAutomaticFeatureScores(
+        actor.organizationId,
+      );
+    }
+
+    this.domainEventsService.publish({
+      name: 'product.feature_request_unlinked',
+      occurredAt: feature.updatedAt,
+      actorId: actor.id,
+      organizationId: actor.organizationId,
+      payload: {
+        featureId: feature.id,
+        requestId,
+      },
+    });
+
+    return feature;
+  }
+
   async getFeatureTraceability(
     featureId: string,
     organizationId: string,

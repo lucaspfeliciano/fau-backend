@@ -11,6 +11,7 @@ import type { CreateSprintDto } from './dto/create-sprint.dto';
 import type { QuerySprintsDto } from './dto/query-sprints.dto';
 import type { UpdateSprintDto } from './dto/update-sprint.dto';
 import type { SprintEntity } from './entities/sprint.entity';
+import { SprintStatus } from './entities/sprint-status.enum';
 import {
   PLANNING_SPRINTS_REPOSITORY,
   type SprintsRepository,
@@ -44,9 +45,10 @@ export class SprintsService {
     const sprint: SprintEntity = {
       id: randomUUID(),
       workspaceId: actor.organizationId,
+      organizationId: actor.organizationId,
       initiativeId: input.initiativeId.trim(),
       name: input.name.trim(),
-      status: input.status.trim(),
+      status: this.normalizeStatus(input.status),
       eta: input.eta?.trim() || undefined,
       squad: input.squad?.trim() || undefined,
       externalLinearSprintId: input.externalLinearSprintId?.trim() || undefined,
@@ -64,13 +66,17 @@ export class SprintsService {
     const limit = query.limit ?? 20;
 
     if (this.sprintsRepository.queryByWorkspace) {
+      const status = query.status
+        ? this.normalizeStatus(query.status)
+        : undefined;
+
       const result = await this.sprintsRepository.queryByWorkspace(
         workspaceId,
         {
           page,
           limit,
           initiativeId: query.initiativeId,
-          status: query.status,
+          status,
           squad: query.squad,
           search: query.search,
         },
@@ -98,7 +104,10 @@ export class SprintsService {
           return true;
         }
 
-        return item.status === query.status;
+        return (
+          this.normalizeStatusForRead(item.status) ===
+          this.normalizeStatus(query.status)
+        );
       })
       .filter((item) => {
         if (!query.squad) {
@@ -170,7 +179,7 @@ export class SprintsService {
     }
 
     if (input.status !== undefined) {
-      sprint.status = input.status.trim();
+      sprint.status = this.normalizeStatus(input.status);
     }
 
     if (input.eta !== undefined) {
@@ -188,5 +197,55 @@ export class SprintsService {
 
     await this.sprintsRepository.update(sprint);
     return sprint;
+  }
+
+  private normalizeStatus(status: string): SprintStatus {
+    const normalized = this.normalizeStatusForRead(status);
+
+    if (normalized) {
+      return normalized;
+    }
+
+    throw new BadRequestException('Invalid sprint status.');
+  }
+
+  private normalizeStatusForRead(status: string): SprintStatus | undefined {
+    const normalized = status.trim().toLowerCase();
+
+    if (normalized === SprintStatus.Planned) {
+      return SprintStatus.Planned;
+    }
+
+    if (
+      normalized === SprintStatus.InProgress ||
+      normalized === 'in-progress' ||
+      normalized === 'in progress' ||
+      normalized === 'active'
+    ) {
+      return SprintStatus.InProgress;
+    }
+
+    if (
+      normalized === SprintStatus.Completed ||
+      normalized === 'done' ||
+      normalized === 'closed'
+    ) {
+      return SprintStatus.Completed;
+    }
+
+    if (
+      normalized === SprintStatus.OnHold ||
+      normalized === 'on-hold' ||
+      normalized === 'on hold' ||
+      normalized === 'blocked'
+    ) {
+      return SprintStatus.OnHold;
+    }
+
+    if (normalized === SprintStatus.Canceled || normalized === 'cancelled') {
+      return SprintStatus.Canceled;
+    }
+
+    return undefined;
   }
 }

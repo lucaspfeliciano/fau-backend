@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  ArrayMinSize,
   ArrayMaxSize,
   IsArray,
   IsEnum,
@@ -46,43 +47,41 @@ export class CreateRequestDto {
   @IsString({ each: true })
   customerIds?: string[];
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     type: [String],
     example: ['Usuarios nao conseguem comparar dashboards por squad.'],
   })
-  @IsOptional()
   @IsArray()
+  @ArrayMinSize(1)
   @ArrayMaxSize(100)
   @IsString({ each: true })
   @MinLength(3, { each: true })
   @MaxLength(400, { each: true })
-  problems?: string[];
+  problems!: string[];
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     type: [String],
     example: ['Adicionar filtro por squad no fluxo de exportacao.'],
   })
-  @IsOptional()
   @IsArray()
+  @ArrayMinSize(1)
   @ArrayMaxSize(100)
   @IsString({ each: true })
   @MinLength(3, { each: true })
   @MaxLength(400, { each: true })
-  solutions?: string[];
+  solutions!: string[];
 
-  @ApiPropertyOptional({ example: 'Analytics' })
-  @IsOptional()
+  @ApiProperty({ example: 'Analytics' })
   @IsString()
   @MinLength(2)
   @MaxLength(120)
-  product?: string;
+  product!: string;
 
-  @ApiPropertyOptional({ example: 'Dashboard Export' })
-  @IsOptional()
+  @ApiProperty({ example: 'Dashboard Export' })
   @IsString()
   @MinLength(2)
   @MaxLength(120)
-  functionality?: string;
+  functionality!: string;
 
   @ApiPropertyOptional({ enum: RequestStatus, example: RequestStatus.New })
   @IsOptional()

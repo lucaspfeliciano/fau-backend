@@ -17,4 +17,8 @@ export interface FeedbacksRepository {
     },
   ) => Promise<{ items: FeedbackEntity[]; total: number }>;
   findByIds(ids: string[], workspaceId: string): Promise<FeedbackEntity[]>;
+  incrementVotes(
+    feedbackId: string,
+    workspaceId: string,
+  ): Promise<FeedbackEntity>;
 }

@@ -11,8 +11,9 @@ import { DomainEventsService } from '../common/events/domain-events.service';
 import { CompaniesService } from '../companies/companies.service';
 import { CustomersService } from '../customers/customers.service';
 import { EngineeringService } from '../engineering/engineering.service';
-import { AiProcessingService } from '../ai-processing/ai-processing.service';
-import { RequestSourceType } from '../requests/entities/request-source-type.enum';
+import { CreateFeedbackDto } from '../feedback/dto/create-feedback.dto';
+import { FeedbackSource } from '../feedback/entities/feedback-source.enum';
+import { FeedbackService } from '../feedback/feedback.service';
 import type { FirefliesConfigInput } from './dto/fireflies-config.schema';
 import type { FirefliesImportTranscriptInput } from './dto/fireflies-import-transcript.schema';
 import type { HubSpotSyncInput } from './dto/hubspot-sync.schema';
@@ -192,7 +193,7 @@ export class IntegrationsService {
     private readonly companiesService: CompaniesService,
     private readonly customersService: CustomersService,
     private readonly engineeringService: EngineeringService,
-    private readonly aiProcessingService: AiProcessingService,
+    private readonly feedbackService: FeedbackService,
     private readonly integrationConfigsRepository: IntegrationConfigsRepository,
     private readonly externalMappingsRepository: ExternalMappingsRepository,
     private readonly integrationMetricsRepository: IntegrationMetricsRepository,
@@ -487,12 +488,12 @@ export class IntegrationsService {
       externalId: connectorResult.externalImportId,
     });
 
-    const aiResult = await this.aiProcessingService.importNotes(
+    const feedback = await this.feedbackService.create(
       {
-        sourceType: RequestSourceType.FirefliesTranscript,
-        noteExternalId: input.externalTranscriptId,
-        text: input.transcriptText,
-      },
+        title: input.title,
+        description: this.composeFirefliesFeedbackDescription(input),
+        source: FeedbackSource.Fireflies,
+      } satisfies CreateFeedbackDto,
       actor,
     );
 
@@ -504,15 +505,18 @@ export class IntegrationsService {
       payload: {
         externalTranscriptId: input.externalTranscriptId,
         importId: connectorResult.externalImportId,
-        extractedItemsCount: aiResult.totalExtractedItems,
-        queuedForReviewCount: aiResult.queuedForReviewItems,
+        feedbackId: feedback.id,
       },
     });
 
     return {
       importId: connectorResult.externalImportId,
-      extractedItemsCount: aiResult.totalExtractedItems,
-      queuedForReviewCount: aiResult.queuedForReviewItems,
+      feedback: {
+        id: feedback.id,
+        title: feedback.title,
+        source: feedback.source,
+        createdAt: feedback.createdAt,
+      },
     };
   }
 
@@ -952,14 +956,34 @@ export class IntegrationsService {
     input: SlackImportMessageInput,
     actor: AuthenticatedUser,
   ) {
-    return this.aiProcessingService.importNotes(
+    const feedback = await this.feedbackService.create(
       {
-        sourceType: RequestSourceType.SlackMessage,
-        noteExternalId: input.noteExternalId,
-        text: input.text,
-      },
+        title: this.buildSlackFeedbackTitle(input.text),
+        description: input.text,
+        source: FeedbackSource.Slack,
+      } satisfies CreateFeedbackDto,
       actor,
     );
+
+    this.domainEventsService.publish({
+      name: 'integrations.slack_message_imported',
+      occurredAt: new Date().toISOString(),
+      actorId: actor.id,
+      organizationId: actor.organizationId,
+      payload: {
+        noteExternalId: input.noteExternalId,
+        feedbackId: feedback.id,
+      },
+    });
+
+    return {
+      feedback: {
+        id: feedback.id,
+        title: feedback.title,
+        source: feedback.source,
+        createdAt: feedback.createdAt,
+      },
+    };
   }
 
   async getStatus(organizationId: string) {
@@ -1015,6 +1039,61 @@ export class IntegrationsService {
         ).length,
       },
       metrics,
+    };
+  }
+
+  async disconnectIntegration(
+    type: string,
+    actor: AuthenticatedUser,
+  ): Promise<{ disconnected: true; type: string; organizationId: string }> {
+    if (
+      type !== IntegrationProvider.Slack &&
+      type !== IntegrationProvider.HubSpot &&
+      type !== IntegrationProvider.Linear
+    ) {
+      throw new BadRequestException(
+        'Unsupported integration type. Use slack, hubspot or linear.',
+      );
+    }
+
+    await Promise.all([
+      this.integrationConfigsRepository.deleteByProvider(
+        actor.organizationId,
+        type,
+      ),
+      this.externalMappingsRepository.deleteByProvider(
+        actor.organizationId,
+        type,
+      ),
+      this.integrationCursorsRepository.deleteByProvider(
+        actor.organizationId,
+        type,
+      ),
+    ]);
+
+    if (type === IntegrationProvider.Linear) {
+      await this.statusMappingsRepository.deleteByProvider(
+        actor.organizationId,
+        type,
+      );
+    }
+
+    const occurredAt = new Date().toISOString();
+
+    this.domainEventsService.publish({
+      name: 'integrations.disconnected',
+      occurredAt,
+      actorId: actor.id,
+      organizationId: actor.organizationId,
+      payload: {
+        provider: type,
+      },
+    });
+
+    return {
+      disconnected: true,
+      type,
+      organizationId: actor.organizationId,
     };
   }
 
@@ -1102,6 +1181,37 @@ export class IntegrationsService {
     }
 
     return `${'*'.repeat(value.length - 4)}${value.slice(-4)}`;
+  }
+
+  private buildSlackFeedbackTitle(text: string): string {
+    const normalized = text.replace(/\s+/g, ' ').trim();
+    const excerpt = normalized.slice(0, 90);
+
+    if (excerpt.length >= 3) {
+      return excerpt;
+    }
+
+    return 'Slack feedback';
+  }
+
+  private composeFirefliesFeedbackDescription(
+    input: FirefliesImportTranscriptInput,
+  ): string {
+    const metadata: string[] = [];
+
+    if (input.happenedAt) {
+      metadata.push(`happenedAt=${input.happenedAt}`);
+    }
+
+    if (input.participants && input.participants.length > 0) {
+      metadata.push(`participants=${input.participants.join(', ')}`);
+    }
+
+    if (metadata.length === 0) {
+      return input.transcriptText;
+    }
+
+    return `${metadata.join(' | ')}\n\n${input.transcriptText}`;
   }
 
   private async executeWithRetry<T>(

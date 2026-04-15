@@ -1,5 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsEnum,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
+import { SprintStatus } from '../entities/sprint-status.enum';
 
 export class CreateSprintDto {
   @ApiProperty({ example: 'initiative-1' })
@@ -14,11 +21,9 @@ export class CreateSprintDto {
   @MaxLength(180)
   name!: string;
 
-  @ApiProperty({ example: 'planned' })
-  @IsString()
-  @MinLength(2)
-  @MaxLength(40)
-  status!: string;
+  @ApiProperty({ enum: SprintStatus, example: SprintStatus.Planned })
+  @IsEnum(SprintStatus)
+  status!: SprintStatus;
 
   @ApiPropertyOptional({ example: '2026-05-15' })
   @IsOptional()

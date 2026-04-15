@@ -2,6 +2,8 @@ import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import type { DomainEvent } from '../common/events/domain-event.interface';
 import { DomainEventsService } from '../common/events/domain-events.service';
+import type { AuthenticatedUser } from '../common/auth/authenticated-user.interface';
+import type { CreateAuditEventInput } from './dto/create-audit-event.schema';
 import type { AuditEventEntity } from './entities/audit-event.entity';
 import { AuditEventsRepository } from './repositories/audit-events.repository';
 
@@ -58,6 +60,29 @@ export class AuditService implements OnModuleInit, OnModuleDestroy {
       page: options.page,
       limit: options.limit,
     };
+  }
+
+  async createManualEvent(
+    input: CreateAuditEventInput,
+    actor: AuthenticatedUser,
+  ): Promise<AuditEventEntity> {
+    const event: AuditEventEntity = {
+      id: randomUUID(),
+      organizationId: actor.organizationId,
+      actorId: actor.id,
+      action: input.action,
+      resourceType: input.resourceType ?? 'manual',
+      resourceId: input.resourceId,
+      payload: {
+        description: input.description,
+        severity: input.severity,
+        metadata: input.metadata ?? {},
+      },
+      occurredAt: new Date().toISOString(),
+    };
+
+    await this.auditEventsRepository.insert(event);
+    return event;
   }
 
   private async handleDomainEvent(event: DomainEvent): Promise<void> {

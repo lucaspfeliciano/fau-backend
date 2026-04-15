@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -16,9 +24,11 @@ import { Roles } from '../common/auth/roles.decorator';
 import { RolesGuard } from '../common/auth/roles.guard';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe';
 import { CreateTeamSchema } from './dto/create-team.schema';
+import { UpdateTeamSchema } from './dto/update-team.schema';
 import { TeamsService } from './teams.service';
 import type { AuthenticatedUser } from '../common/auth/authenticated-user.interface';
 import type { CreateTeamInput } from './dto/create-team.schema';
+import type { UpdateTeamInput } from './dto/update-team.schema';
 
 @ApiTags('Teams')
 @ApiBearerAuth()
@@ -55,6 +65,29 @@ export class TeamsController {
   async list(@CurrentUser() user: AuthenticatedUser) {
     return {
       items: await this.teamsService.listByOrganization(user.organizationId),
+    };
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update team in the current organization' })
+  @ApiBody({ schema: { example: { name: 'Product Ops Team' } } })
+  @ApiOkResponse({ description: 'Team updated successfully.' })
+  @ApiForbiddenResponse({ description: 'Role does not allow team updates.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @Roles(Role.Admin, Role.Editor)
+  async update(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(UpdateTeamSchema))
+    body: UpdateTeamInput,
+  ) {
+    return {
+      team: await this.teamsService.update(
+        id,
+        body.name,
+        user.organizationId,
+        user.id,
+      ),
     };
   }
 }

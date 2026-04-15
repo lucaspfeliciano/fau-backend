@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
+import { InitiativeStatus } from '../entities/initiative-status.enum';
 
 export type PlanningInitiativeDocument =
   HydratedDocument<PlanningInitiativeModel>;
@@ -12,6 +13,9 @@ export class PlanningInitiativeModel {
   @Prop({ type: String, required: true, index: true })
   workspaceId!: string;
 
+  @Prop({ type: String, index: true })
+  organizationId?: string;
+
   @Prop({ type: String, required: true })
   title!: string;
 
@@ -21,7 +25,12 @@ export class PlanningInitiativeModel {
   @Prop({ type: [String], default: [] })
   requestIds!: string[];
 
-  @Prop({ type: String, required: true, index: true })
+  @Prop({
+    type: String,
+    required: true,
+    index: true,
+    enum: Object.values(InitiativeStatus),
+  })
   status!: string;
 
   @Prop({ type: String })
@@ -34,3 +43,4 @@ export const PlanningInitiativeSchema = SchemaFactory.createForClass(
 
 PlanningInitiativeSchema.index({ workspaceId: 1, status: 1 });
 PlanningInitiativeSchema.index({ workspaceId: 1, title: 1 });
+PlanningInitiativeSchema.index({ organizationId: 1, status: 1 });

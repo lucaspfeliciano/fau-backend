@@ -9,5 +9,6 @@ export interface FeedbackEntity {
   publicSubmitterName?: string;
   publicSubmitterEmail?: string;
   customerId?: string;
+  votes?: number;
   createdAt: string;
 }

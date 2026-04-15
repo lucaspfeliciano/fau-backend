@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsEnum,
   IsInt,
   IsOptional,
   IsString,
@@ -9,6 +10,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
+import { SprintStatus } from '../entities/sprint-status.enum';
 
 export class QuerySprintsDto {
   @ApiPropertyOptional({ example: 1, default: 1 })
@@ -33,12 +35,10 @@ export class QuerySprintsDto {
   @MaxLength(120)
   initiativeId?: string;
 
-  @ApiPropertyOptional({ example: 'in_progress' })
+  @ApiPropertyOptional({ enum: SprintStatus, example: SprintStatus.InProgress })
   @IsOptional()
-  @IsString()
-  @MinLength(2)
-  @MaxLength(40)
-  status?: string;
+  @IsEnum(SprintStatus)
+  status?: SprintStatus;
 
   @ApiPropertyOptional({ example: 'squad-growth' })
   @IsOptional()

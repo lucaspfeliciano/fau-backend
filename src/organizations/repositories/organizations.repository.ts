@@ -32,4 +32,10 @@ export class OrganizationsRepository {
 
     return doc ?? undefined;
   }
+
+  async update(organization: OrganizationEntity): Promise<void> {
+    await this.organizationModel
+      .updateOne({ id: organization.id }, { $set: organization })
+      .exec();
+  }
 }

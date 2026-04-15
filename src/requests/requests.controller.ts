@@ -28,6 +28,7 @@ import { Role } from '../common/auth/role.enum';
 import { Roles } from '../common/auth/roles.decorator';
 import { RolesGuard } from '../common/auth/roles.guard';
 import { CreateRequestDto } from './dto/create-request.dto';
+import { PromoteFeedbackToRequestDto } from './dto/promote-feedback-to-request.dto';
 import { QueryRequestsDto } from './dto/query-requests.dto';
 import { UpdateRequestDto } from './dto/update-request.dto';
 import { RequestsService } from './requests.service';
@@ -67,7 +68,43 @@ export class RequestsController {
     body: CreateRequestDto,
   ) {
     return {
-      request: await this.requestsService.create(body, user),
+      request: await this.requestsService.createCanonical(body, user),
+    };
+  }
+
+  @Post('promote-feedback/:feedbackId')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Promote feedback into a canonical request' })
+  @ApiParam({ name: 'feedbackId', description: 'Feedback id' })
+  @ApiBody({
+    schema: {
+      example: {
+        title: 'Exportar dashboard por squad',
+        description:
+          'Consolidacao da demanda vinda do feedback para fluxo estruturado.',
+        problems: ['Times nao conseguem exportar por squad no formato atual.'],
+        solutions: ['Adicionar filtro por squad no modal de exportacao.'],
+        product: 'Analytics',
+        functionality: 'Dashboard Export',
+        status: 'new',
+      },
+    },
+  })
+  @ApiCreatedResponse({ description: 'Feedback promoted to request.' })
+  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async promoteFeedback(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('feedbackId') feedbackId: string,
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    body: PromoteFeedbackToRequestDto,
+  ) {
+    return {
+      request: await this.requestsService.promoteFeedbackToRequest(
+        feedbackId,
+        body,
+        user,
+      ),
     };
   }
 

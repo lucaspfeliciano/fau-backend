@@ -1,4 +1,9 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import type { AuthenticatedUser } from '../common/auth/authenticated-user.interface';
 import type { QueryFeedbackDto } from './dto/query-feedback.dto';
@@ -134,6 +139,26 @@ export class FeedbackService {
     if (missing.length > 0) {
       throw new BadRequestException('One or more feedbackIds are invalid.');
     }
+  }
+
+  async findOneById(id: string, workspaceId: string): Promise<FeedbackEntity> {
+    const [feedback] = await this.feedbacksRepository.findByIds(
+      [id],
+      workspaceId,
+    );
+
+    if (!feedback) {
+      throw new NotFoundException('Feedback not found.');
+    }
+
+    return feedback;
+  }
+
+  async voteFromPublicPortal(
+    feedbackId: string,
+    workspaceId: string,
+  ): Promise<FeedbackEntity> {
+    return this.feedbacksRepository.incrementVotes(feedbackId, workspaceId);
   }
 
   private uniqueValues(values: string[] | undefined): string[] {

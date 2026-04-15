@@ -22,4 +22,25 @@ export class TeamsRepository {
       .lean<TeamEntity[]>()
       .exec();
   }
+
+  async findById(
+    id: string,
+    organizationId: string,
+  ): Promise<TeamEntity | undefined> {
+    const doc = await this.teamModel
+      .findOne({ id, organizationId })
+      .lean<TeamEntity>()
+      .exec();
+
+    return doc ?? undefined;
+  }
+
+  async update(team: TeamEntity): Promise<void> {
+    await this.teamModel
+      .updateOne(
+        { id: team.id, organizationId: team.organizationId },
+        { $set: team },
+      )
+      .exec();
+  }
 }

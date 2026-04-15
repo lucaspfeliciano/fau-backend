@@ -3,4 +3,5 @@ export enum FeedbackSource {
   PublicPortal = 'public_portal',
   Widget = 'widget',
   Slack = 'slack',
+  Fireflies = 'fireflies',
 }

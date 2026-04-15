@@ -14,6 +14,9 @@ export class OrganizationModel {
   @Prop({ type: String, required: true, unique: true, index: true })
   slug!: string;
 
+  @Prop({ type: String })
+  widgetApiKey?: string;
+
   @Prop({ type: Boolean, required: true, default: false })
   publicPortalEnabled!: boolean;
 

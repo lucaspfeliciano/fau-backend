@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { DomainEventsService } from '../common/events/domain-events.service';
 import { TeamEntity } from './entities/team.entity';
@@ -45,5 +45,36 @@ export class TeamsService {
 
   listByOrganization(organizationId: string): Promise<TeamEntity[]> {
     return this.teamsRepository.listByOrganization(organizationId);
+  }
+
+  async update(
+    id: string,
+    name: string,
+    organizationId: string,
+    actorId: string,
+  ): Promise<TeamEntity> {
+    const team = await this.teamsRepository.findById(id, organizationId);
+
+    if (!team) {
+      throw new NotFoundException('Team not found.');
+    }
+
+    team.name = name.trim();
+    team.updatedAt = new Date().toISOString();
+
+    await this.teamsRepository.update(team);
+
+    this.domainEventsService.publish({
+      name: 'team.updated',
+      occurredAt: team.updatedAt,
+      actorId,
+      organizationId,
+      payload: {
+        teamId: team.id,
+        name: team.name,
+      },
+    });
+
+    return team;
   }
 }

@@ -11,6 +11,7 @@ import type { CreateInitiativeDto } from './dto/create-initiative.dto';
 import type { QueryInitiativesDto } from './dto/query-initiatives.dto';
 import type { UpdateInitiativeDto } from './dto/update-initiative.dto';
 import type { InitiativeEntity } from './entities/initiative.entity';
+import { InitiativeStatus } from './entities/initiative-status.enum';
 import {
   PLANNING_INITIATIVES_REPOSITORY,
   type InitiativesRepository,
@@ -42,10 +43,11 @@ export class InitiativesService {
     const initiative: InitiativeEntity = {
       id: randomUUID(),
       workspaceId: actor.organizationId,
+      organizationId: actor.organizationId,
       title: input.title.trim(),
       description: input.description.trim(),
       requestIds,
-      status: input.status.trim(),
+      status: this.normalizeStatus(input.status),
       priorityNotes: input.priorityNotes?.trim() || undefined,
     };
 
@@ -61,12 +63,16 @@ export class InitiativesService {
     const limit = query.limit ?? 20;
 
     if (this.initiativesRepository.queryByWorkspace) {
+      const status = query.status
+        ? this.normalizeStatus(query.status)
+        : undefined;
+
       const result = await this.initiativesRepository.queryByWorkspace(
         workspaceId,
         {
           page,
           limit,
-          status: query.status,
+          status,
           search: query.search,
         },
       );
@@ -88,7 +94,10 @@ export class InitiativesService {
           return true;
         }
 
-        return item.status === query.status;
+        return (
+          this.normalizeStatusForRead(item.status) ===
+          this.normalizeStatus(query.status)
+        );
       })
       .filter((item) => {
         if (!query.search) {
@@ -160,7 +169,7 @@ export class InitiativesService {
     }
 
     if (input.status !== undefined) {
-      initiative.status = input.status.trim();
+      initiative.status = this.normalizeStatus(input.status);
     }
 
     if (input.priorityNotes !== undefined) {
@@ -210,5 +219,58 @@ export class InitiativesService {
     }
 
     return result;
+  }
+
+  private normalizeStatus(status: string): InitiativeStatus {
+    const normalized = this.normalizeStatusForRead(status);
+
+    if (normalized) {
+      return normalized;
+    }
+
+    throw new BadRequestException('Invalid initiative status.');
+  }
+
+  private normalizeStatusForRead(status: string): InitiativeStatus | undefined {
+    const normalized = status.trim().toLowerCase();
+
+    if (normalized === InitiativeStatus.Planned) {
+      return InitiativeStatus.Planned;
+    }
+
+    if (
+      normalized === InitiativeStatus.InProgress ||
+      normalized === 'in-progress' ||
+      normalized === 'in progress' ||
+      normalized === 'active'
+    ) {
+      return InitiativeStatus.InProgress;
+    }
+
+    if (
+      normalized === InitiativeStatus.Completed ||
+      normalized === 'done' ||
+      normalized === 'closed'
+    ) {
+      return InitiativeStatus.Completed;
+    }
+
+    if (
+      normalized === InitiativeStatus.OnHold ||
+      normalized === 'on-hold' ||
+      normalized === 'on hold' ||
+      normalized === 'blocked'
+    ) {
+      return InitiativeStatus.OnHold;
+    }
+
+    if (
+      normalized === InitiativeStatus.Canceled ||
+      normalized === 'cancelled'
+    ) {
+      return InitiativeStatus.Canceled;
+    }
+
+    return undefined;
   }
 }

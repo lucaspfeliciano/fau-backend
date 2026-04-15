@@ -5,6 +5,7 @@ import { DomainEventsModule } from '../common/events/domain-events.module';
 import { ProductModule } from '../product/product.module';
 import { UsersModule } from '../users/users.module';
 import { EngineeringController } from './engineering.controller';
+import { EngineeringProductCompatController } from './engineering-product-compat.controller';
 import { SprintModel, SprintSchema } from './repositories/sprint.schema';
 import { SprintsRepository } from './repositories/sprints.repository';
 import { TaskModel, TaskSchema } from './repositories/task.schema';
@@ -28,7 +29,7 @@ import { EngineeringService } from './engineering.service';
       },
     ]),
   ],
-  controllers: [EngineeringController],
+  controllers: [EngineeringController, EngineeringProductCompatController],
   providers: [EngineeringService, SprintsRepository, TasksRepository],
   exports: [EngineeringService],
 })

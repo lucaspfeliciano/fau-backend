@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import type { SprintEntity } from '../entities/sprint.entity';
+import { SprintStatus } from '../entities/sprint-status.enum';
 import type { SprintsRepository } from './sprints-repository.interface';
 import { PlanningSprintModel } from './sprint.schema';
 
@@ -13,18 +14,26 @@ export class MongoSprintsRepository implements SprintsRepository {
   ) {}
 
   async insert(sprint: SprintEntity): Promise<void> {
-    await this.sprintModel.create(sprint);
+    await this.sprintModel.create({
+      ...sprint,
+      organizationId: sprint.organizationId ?? sprint.workspaceId,
+    });
   }
 
   async update(sprint: SprintEntity): Promise<void> {
+    const tenantId = sprint.workspaceId;
+
     await this.sprintModel
       .updateOne(
         {
           id: sprint.id,
-          workspaceId: sprint.workspaceId,
+          $or: [{ workspaceId: tenantId }, { organizationId: tenantId }],
         },
         {
-          $set: sprint,
+          $set: {
+            ...sprint,
+            organizationId: sprint.organizationId ?? sprint.workspaceId,
+          },
         },
       )
       .exec();
@@ -37,22 +46,28 @@ export class MongoSprintsRepository implements SprintsRepository {
     const doc = await this.sprintModel
       .findOne({
         id: sprintId,
-        workspaceId,
+        ...this.buildTenantFilter(workspaceId),
       })
       .select({ _id: 0 })
       .lean<SprintEntity>()
       .exec();
 
-    return doc ?? undefined;
+    if (!doc) {
+      return undefined;
+    }
+
+    return this.normalize(doc, workspaceId);
   }
 
   async listByWorkspace(workspaceId: string): Promise<SprintEntity[]> {
-    return this.sprintModel
-      .find({ workspaceId })
+    const docs = await this.sprintModel
+      .find(this.buildTenantFilter(workspaceId))
       .sort({ name: 1 })
       .select({ _id: 0 })
       .lean<SprintEntity[]>()
       .exec();
+
+    return docs.map((doc) => this.normalize(doc, workspaceId));
   }
 
   async queryByWorkspace(
@@ -61,13 +76,15 @@ export class MongoSprintsRepository implements SprintsRepository {
       page: number;
       limit: number;
       initiativeId?: string;
-      status?: string;
+      status?: SprintStatus;
       squad?: string;
       search?: string;
     },
   ): Promise<{ items: SprintEntity[]; total: number }> {
+    const tenantFilter = this.buildTenantFilter(workspaceId);
+
     const filter: Record<string, unknown> = {
-      workspaceId,
+      ...tenantFilter,
     };
 
     if (options.initiativeId) {
@@ -87,11 +104,17 @@ export class MongoSprintsRepository implements SprintsRepository {
         $regex: this.escapeRegex(options.search),
         $options: 'i',
       };
-      filter.$or = [
-        { name: searchRegex },
-        { squad: searchRegex },
-        { externalLinearSprintId: searchRegex },
+      filter.$and = [
+        tenantFilter,
+        {
+          $or: [
+            { name: searchRegex },
+            { squad: searchRegex },
+            { externalLinearSprintId: searchRegex },
+          ],
+        },
       ];
+      delete filter.$or;
     }
 
     const total = await this.sprintModel.countDocuments(filter).exec();
@@ -105,8 +128,25 @@ export class MongoSprintsRepository implements SprintsRepository {
       .exec();
 
     return {
-      items,
+      items: items.map((item) => this.normalize(item, workspaceId)),
       total,
+    };
+  }
+
+  private normalize(sprint: SprintEntity, workspaceId: string): SprintEntity {
+    const normalizedWorkspaceId =
+      sprint.workspaceId ?? sprint.organizationId ?? workspaceId;
+
+    return {
+      ...sprint,
+      workspaceId: normalizedWorkspaceId,
+      organizationId: sprint.organizationId ?? normalizedWorkspaceId,
+    };
+  }
+
+  private buildTenantFilter(workspaceId: string) {
+    return {
+      $or: [{ workspaceId }, { organizationId: workspaceId }],
     };
   }
 

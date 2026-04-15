@@ -13,14 +13,17 @@ import { RequestStatus } from '../requests/entities/request-status.enum';
 import { RequestsService } from '../requests/requests.service';
 import type { CreatePlaygroundHypothesisDto } from './dto/create-playground-hypothesis.dto';
 import type { CreatePlaygroundInsightDto } from './dto/create-playground-insight.dto';
+import type { CreateLegacyPlaygroundNodeDto } from './dto/create-legacy-playground-node.dto';
 import type { CreatePlaygroundWorkspaceDto } from './dto/create-playground-workspace.dto';
 import type { PromotePlaygroundInsightToRequestDto } from './dto/promote-playground-insight-to-request.dto';
 import type { QueryPlaygroundAssetsDto } from './dto/query-playground-assets.dto';
 import type { QueryPlaygroundHypothesesDto } from './dto/query-playground-hypotheses.dto';
 import type { QueryPlaygroundInsightsDto } from './dto/query-playground-insights.dto';
+import type { QueryLegacyPlaygroundNodesDto } from './dto/query-legacy-playground-nodes.dto';
 import type { QueryPlaygroundWorkspacesDto } from './dto/query-playground-workspaces.dto';
 import type { UpdatePlaygroundHypothesisDto } from './dto/update-playground-hypothesis.dto';
 import type { UpdatePlaygroundInsightDto } from './dto/update-playground-insight.dto';
+import type { UpdateLegacyPlaygroundNodeDto } from './dto/update-legacy-playground-node.dto';
 import type { UpdatePlaygroundWorkspaceDto } from './dto/update-playground-workspace.dto';
 import type { UploadPlaygroundAssetDto } from './dto/upload-playground-asset.dto';
 import type { PlaygroundAssetEntity } from './entities/playground-asset.entity';
@@ -88,6 +91,43 @@ export interface PaginatedPlaygroundInsightsResult {
 export interface PromotePlaygroundInsightResult {
   insight: PlaygroundInsightEntity;
   request: RequestEntity;
+}
+
+export interface LegacyPlaygroundNode {
+  id: string;
+  type: string;
+  title: string;
+  content: string;
+  linkedAssetId?: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaginatedLegacyPlaygroundNodesResult {
+  items: LegacyPlaygroundNode[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface LegacyPlaygroundBoardCard {
+  id: string;
+  title: string;
+  description?: string;
+  status: string;
+  confidence: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaginatedLegacyPlaygroundBoardCardsResult {
+  items: LegacyPlaygroundBoardCard[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
 }
 
 @Injectable()
@@ -207,9 +247,9 @@ export class PlaygroundService {
   async deleteWorkspace(id: string, actor: AuthenticatedUser): Promise<void> {
     const workspace = await this.findWorkspaceById(id, actor.organizationId);
 
-    const assets = await this.playgroundAssetsRepository.listByPlaygroundWorkspace(
+    const assets =
       workspace.id,
-      actor.organizationId,
+       ator.organizationId,
     );
 
     for (const asset of assets) {
@@ -635,6 +675,143 @@ export class PlaygroundService {
     return this.paginate(filtered, page, limit);
   }
 
+  async listLegacyNodes(
+    playgroundWorkspaceId: string,
+    query: QueryLegacyPlaygroundNodesDto,
+    workspaceId: string,
+  ): Promise<PaginatedLegacyPlaygroundNodesResult> {
+    const result = await this.listInsights(
+      playgroundWorkspaceId,
+      {
+        page: query.page,
+        limit: query.limit,
+        search: query.search,
+      },
+      workspaceId,
+    );
+
+    return {
+      items: result.items.map((item) => this.toLegacyNode(item)),
+      page: result.page,
+      limit: result.limit,
+      total: result.total,
+      totalPages: result.totalPages,
+    };
+  }
+
+  async createLegacyNode(
+    playgroundWorkspaceId: string,
+    input: CreateLegacyPlaygroundNodeDto,
+    actor: AuthenticatedUser,
+  ): Promise<LegacyPlaygroundNode> {
+    const insight = await this.createInsight(
+      playgroundWorkspaceId,
+      {
+        title: input.title,
+        summary: input.content ?? input.title,
+        type: this.mapLegacyNodeType(input.type),
+        evidenceAssetIds: input.linkedAssetId ? [input.linkedAssetId] : [],
+        importance: this.readNumberMetadata(input.metadata, 'importance'),
+        isPinned: this.readBooleanMetadata(input.metadata, 'isPinned'),
+        sortOrder: this.readNumberMetadata(input.metadata, 'sortOrder'),
+        relatedHypothesisIds: this.readStringArrayMetadata(
+          input.metadata,
+          'relatedHypothesisIds',
+        ),
+      },
+      actor,
+    );
+
+    return this.toLegacyNode(insight);
+  }
+
+  async updateLegacyNode(
+    nodeId: string,
+    input: UpdateLegacyPlaygroundNodeDto,
+    actor: AuthenticatedUser,
+  ): Promise<LegacyPlaygroundNode> {
+    const updateInput: UpdatePlaygroundInsightDto = {};
+
+    if (input.title !== undefined) {
+      updateInput.title = input.title;
+    }
+
+    if (input.content !== undefined) {
+      updateInput.summary = input.content;
+    }
+
+    if (input.type !== undefined) {
+      updateInput.type = this.mapLegacyNodeType(input.type);
+    }
+
+    if (input.linkedAssetId !== undefined) {
+      updateInput.evidenceAssetIds = input.linkedAssetId
+        ? [input.linkedAssetId]
+        : [];
+    }
+
+    const importance = this.readNumberMetadata(input.metadata, 'importance');
+    if (importance !== undefined) {
+      updateInput.importance = importance;
+    }
+
+    const isPinned = this.readBooleanMetadata(input.metadata, 'isPinned');
+    if (isPinned !== undefined) {
+      updateInput.isPinned = isPinned;
+    }
+
+    const sortOrder = this.readNumberMetadata(input.metadata, 'sortOrder');
+    if (sortOrder !== undefined) {
+      updateInput.sortOrder = sortOrder;
+    }
+
+    const relatedHypothesisIds = this.readStringArrayMetadata(
+      input.metadata,
+      'relatedHypothesisIds',
+    );
+    if (relatedHypothesisIds !== undefined) {
+      updateInput.relatedHypothesisIds = relatedHypothesisIds;
+    }
+
+    const insight = await this.updateInsight(nodeId, updateInput, actor);
+    return this.toLegacyNode(insight);
+  }
+
+  async deleteLegacyNode(
+    nodeId: string,
+    actor: AuthenticatedUser,
+  ): Promise<void> {
+    await this.deleteInsight(nodeId, actor);
+  }
+
+  async listLegacyBoardCards(
+    playgroundWorkspaceId: string,
+    query: QueryPlaygroundHypothesesDto,
+    workspaceId: string,
+  ): Promise<PaginatedLegacyPlaygroundBoardCardsResult> {
+    const result = await this.listHypotheses(
+      playgroundWorkspaceId,
+      query,
+      workspaceId,
+    );
+
+    return {
+      items: result.items.map((item) => ({
+        id: item.id,
+        title: item.statement,
+        description: item.description,
+        status: item.status,
+        confidence: item.confidence,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+      })),
+      page: result.page,
+      limit: result.limit,
+      total: result.total,
+      totalPages: result.totalPages,
+    };
+  }
+
   async getInsight(
     id: string,
     workspaceId: string,
@@ -788,7 +965,9 @@ export class PlaygroundService {
     }
 
     if (input.relatedHypothesisIds !== undefined) {
-      const relatedHypothesisIds = this.uniqueValues(input.relatedHypothesisIds);
+      const relatedHypothesisIds = this.uniqueValues(
+        input.relatedHypothesisIds,
+      );
       await this.ensureHypothesisLinksBelongToWorkspace(
         insight.playgroundWorkspaceId,
         actor.organizationId,
@@ -961,7 +1140,9 @@ export class PlaygroundService {
     const updates = hypotheses
       .filter((item) => item.evidenceAssetIds.includes(assetId))
       .map(async (item) => {
-        item.evidenceAssetIds = item.evidenceAssetIds.filter((id) => id !== assetId);
+        item.evidenceAssetIds = item.evidenceAssetIds.filter(
+          (id) => id !== assetId,
+        );
         item.updatedAt = new Date().toISOString();
         await this.playgroundHypothesesRepository.update(item);
       });
@@ -974,15 +1155,18 @@ export class PlaygroundService {
     workspaceId: string,
     assetId: string,
   ): Promise<void> {
-    const insights = await this.playgroundInsightsRepository.listByPlaygroundWorkspace(
-      playgroundWorkspaceId,
-      workspaceId,
-    );
+    const insights =
+      await this.playgroundInsightsRepository.listByPlaygroundWorkspace(
+        playgroundWorkspaceId,
+        workspaceId,
+      );
 
     const updates = insights
       .filter((item) => item.evidenceAssetIds.includes(assetId))
       .map(async (item) => {
-        item.evidenceAssetIds = item.evidenceAssetIds.filter((id) => id !== assetId);
+        item.evidenceAssetIds = item.evidenceAssetIds.filter(
+          (id) => id !== assetId,
+        );
         item.updatedAt = new Date().toISOString();
         await this.playgroundInsightsRepository.update(item);
       });
@@ -995,10 +1179,11 @@ export class PlaygroundService {
     workspaceId: string,
     hypothesisId: string,
   ): Promise<void> {
-    const insights = await this.playgroundInsightsRepository.listByPlaygroundWorkspace(
-      playgroundWorkspaceId,
-      workspaceId,
-    );
+    const insights =
+      await this.playgroundInsightsRepository.listByPlaygroundWorkspace(
+        playgroundWorkspaceId,
+        workspaceId,
+      );
 
     const updates = insights
       .filter((item) => item.relatedHypothesisIds.includes(hypothesisId))
@@ -1011,6 +1196,88 @@ export class PlaygroundService {
       });
 
     await Promise.all(updates);
+  }
+
+  private toLegacyNode(insight: PlaygroundInsightEntity): LegacyPlaygroundNode {
+    return {
+      id: insight.id,
+      type: insight.type,
+      title: insight.title,
+      content: insight.summary,
+      linkedAssetId: insight.evidenceAssetIds[0],
+      metadata: {
+        importance: insight.importance,
+        isPinned: insight.isPinned,
+        sortOrder: insight.sortOrder,
+        relatedHypothesisIds: insight.relatedHypothesisIds,
+        requestIds: insight.requestIds,
+      },
+      createdAt: insight.createdAt,
+      updatedAt: insight.updatedAt,
+    };
+  }
+
+  private mapLegacyNodeType(type: string): PlaygroundInsightType {
+    const normalized = type.trim().toLowerCase();
+
+    if (normalized === 'pain_point' || normalized === 'problem') {
+      return PlaygroundInsightType.PainPoint;
+    }
+
+    if (normalized === 'behavior') {
+      return PlaygroundInsightType.Behavior;
+    }
+
+    if (normalized === 'risk') {
+      return PlaygroundInsightType.Risk;
+    }
+
+    return PlaygroundInsightType.Opportunity;
+  }
+
+  private readNumberMetadata(
+    metadata: Record<string, unknown> | undefined,
+    key: string,
+  ): number | undefined {
+    const value = metadata?.[key];
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return Math.trunc(value);
+    }
+
+    return undefined;
+  }
+
+  private readBooleanMetadata(
+    metadata: Record<string, unknown> | undefined,
+    key: string,
+  ): boolean | undefined {
+    const value = metadata?.[key];
+    if (typeof value === 'boolean') {
+      return value;
+    }
+
+    return undefined;
+  }
+
+  private readStringArrayMetadata(
+    metadata: Record<string, unknown> | undefined,
+    key: string,
+  ): string[] | undefined {
+    const value = metadata?.[key];
+    if (!Array.isArray(value)) {
+      return undefined;
+    }
+
+    const normalized = value
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+
+    if (normalized.length === 0) {
+      return [];
+    }
+
+    return this.uniqueValues(normalized);
   }
 
   private uniqueValues(values: string[] | undefined): string[] {

@@ -90,6 +90,27 @@ export class MongoFeedbacksRepository implements FeedbacksRepository {
       .exec();
   }
 
+  async incrementVotes(
+    feedbackId: string,
+    workspaceId: string,
+  ): Promise<FeedbackEntity> {
+    const updated = await this.feedbackModel
+      .findOneAndUpdate(
+        { id: feedbackId, workspaceId },
+        { $inc: { votes: 1 } },
+        { new: true },
+      )
+      .select({ _id: 0 })
+      .lean<FeedbackEntity>()
+      .exec();
+
+    if (!updated) {
+      throw new Error('Feedback not found for vote increment.');
+    }
+
+    return updated;
+  }
+
   private escapeRegex(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }

@@ -29,6 +29,9 @@ export class FeedbackModel {
   @Prop({ type: String, index: true })
   customerId?: string;
 
+  @Prop({ type: Number, default: 0 })
+  votes?: number;
+
   @Prop({ type: String, required: true, index: true })
   createdAt!: string;
 }

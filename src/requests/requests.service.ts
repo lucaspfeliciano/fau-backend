@@ -92,6 +92,27 @@ export interface CreatePublicPortalCommentInput {
   publicAuthorEmail: string;
 }
 
+export interface CreateCanonicalRequestInput extends CreateRequestInput {
+  problems: string[];
+  solutions: string[];
+  product: string;
+  functionality: string;
+}
+
+export interface PromoteFeedbackToRequestInput {
+  title?: string;
+  description?: string;
+  problems: string[];
+  solutions: string[];
+  product: string;
+  functionality: string;
+  status?: RequestStatus;
+  customerIds?: string[];
+  companyIds?: string[];
+  tags?: string[];
+  boardId?: string;
+}
+
 export interface DeduplicationMetricsResult {
   totalEvaluations: number;
   created: number;
@@ -168,10 +189,116 @@ export class RequestsService {
     input: CreateRequestInput,
     actor: AuthenticatedUser,
   ): Promise<RequestEntity> {
+    // Legacy-compatible creation used by integrations and transitional flows.
     return this.createRaw(input, {
       id: actor.id,
       organizationId: actor.organizationId,
     });
+  }
+
+  async createCanonical(
+    input: CreateCanonicalRequestInput,
+    actor: AuthenticatedUser,
+  ): Promise<RequestEntity> {
+    const problems = this.uniqueValues(input.problems);
+    const solutions = this.uniqueValues(input.solutions);
+    const product = input.product?.trim();
+    const functionality = input.functionality?.trim();
+
+    if (problems.length === 0) {
+      throw new BadRequestException(
+        'At least one problem is required for canonical request creation.',
+      );
+    }
+
+    if (solutions.length === 0) {
+      throw new BadRequestException(
+        'At least one solution is required for canonical request creation.',
+      );
+    }
+
+    if (!product) {
+      throw new BadRequestException(
+        'Product is required for canonical request creation.',
+      );
+    }
+
+    if (!functionality) {
+      throw new BadRequestException(
+        'Functionality is required for canonical request creation.',
+      );
+    }
+
+    return this.createRaw(
+      {
+        ...input,
+        problems,
+        solutions,
+        product,
+        functionality,
+      },
+      {
+        id: actor.id,
+        organizationId: actor.organizationId,
+      },
+    );
+  }
+
+  async promoteFeedbackToRequest(
+    feedbackId: string,
+    input: PromoteFeedbackToRequestInput,
+    actor: AuthenticatedUser,
+  ): Promise<RequestEntity> {
+    if (!this.feedbackService) {
+      throw new BadRequestException(
+        'Feedback module is not available for promotion flow.',
+      );
+    }
+
+    const feedback = await this.feedbackService.findOneById(
+      feedbackId,
+      actor.organizationId,
+    );
+
+    const customerIds = this.uniqueValues([
+      ...(feedback.customerId ? [feedback.customerId] : []),
+      ...(input.customerIds ?? []),
+    ]);
+
+    const request = await this.createCanonical(
+      {
+        title: input.title?.trim() || feedback.title,
+        description: input.description?.trim() || feedback.description,
+        feedbackIds: [feedback.id],
+        customerIds,
+        companyIds: this.uniqueValues(input.companyIds),
+        tags: this.uniqueValues([...(input.tags ?? []), 'feedback-promoted']),
+        boardId: input.boardId,
+        status: input.status ?? RequestStatus.New,
+        problems: input.problems,
+        solutions: input.solutions,
+        product: input.product,
+        functionality: input.functionality,
+        sourceType: this.mapFeedbackSourceToRequestSourceType(feedback.source),
+        sourceRef: `feedback:${feedback.id}`,
+        publicSubmitterName: feedback.publicSubmitterName,
+        publicSubmitterEmail: feedback.publicSubmitterEmail,
+      },
+      actor,
+    );
+
+    this.domainEventsService.publish({
+      name: 'feedback.promoted_to_request',
+      occurredAt: new Date().toISOString(),
+      actorId: actor.id,
+      organizationId: actor.organizationId,
+      payload: {
+        feedbackId: feedback.id,
+        requestId: request.id,
+      },
+    });
+
+    return request;
   }
 
   async createFromPublicPortal(
@@ -1242,7 +1369,10 @@ export class RequestsService {
   ): Promise<RequestEntity> {
     const linked = await this.vote(requestId, actor);
 
-    linked.tags = this.uniqueValues([...(linked.tags ?? []), ...(input.tags ?? [])]);
+    linked.tags = this.uniqueValues([
+      ...(linked.tags ?? []),
+      ...(input.tags ?? []),
+    ]);
     linked.customerIds = this.uniqueValues([
       ...(linked.customerIds ?? []),
       ...(input.customerIds ?? []),
@@ -1311,7 +1441,10 @@ export class RequestsService {
     const mergeId = randomUUID();
 
     target.votes = (target.votes ?? 0) + Math.max(1, source.votes ?? 1);
-    target.tags = this.uniqueValues([...(target.tags ?? []), ...(source.tags ?? [])]);
+    target.tags = this.uniqueValues([
+      ...(target.tags ?? []),
+      ...(source.tags ?? []),
+    ]);
     target.customerIds = this.uniqueValues([
       ...(target.customerIds ?? []),
       ...(source.customerIds ?? []),
@@ -1557,6 +1690,28 @@ export class RequestsService {
     });
 
     return request;
+  }
+
+  private mapFeedbackSourceToRequestSourceType(
+    source: FeedbackSource,
+  ): RequestSourceType {
+    if (source === FeedbackSource.PublicPortal) {
+      return RequestSourceType.PublicPortal;
+    }
+
+    if (source === FeedbackSource.Slack) {
+      return RequestSourceType.Slack;
+    }
+
+    if (source === FeedbackSource.Widget) {
+      return RequestSourceType.Widget;
+    }
+
+    if (source === FeedbackSource.Fireflies) {
+      return RequestSourceType.FirefliesTranscript;
+    }
+
+    return RequestSourceType.Manual;
   }
 
   private async ensureCustomersExist(

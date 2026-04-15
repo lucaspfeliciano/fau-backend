@@ -174,4 +174,13 @@ export class IntegrationConfigsRepository {
       updatedAt: doc.updatedAt,
     };
   }
+
+  async deleteByProvider(
+    organizationId: string,
+    provider: IntegrationProvider,
+  ): Promise<void> {
+    await this.integrationConfigModel
+      .deleteMany({ organizationId, provider })
+      .exec();
+  }
 }

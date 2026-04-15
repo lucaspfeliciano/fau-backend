@@ -95,6 +95,23 @@ export class EngineeringController {
     return this.engineeringService.listSprints(query, user.organizationId);
   }
 
+  @Get('sprints/:id')
+  @ApiOperation({ summary: 'Get sprint by id' })
+  @ApiParam({ name: 'id', description: 'Sprint id' })
+  @ApiOkResponse({ description: 'Returns sprint by id.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async getSprint(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return {
+      sprint: await this.engineeringService.getSprintById(
+        id,
+        user.organizationId,
+      ),
+    };
+  }
+
   @Patch('sprints/:id')
   @Roles(Role.Admin, Role.Editor)
   @ApiOperation({ summary: 'Update sprint by id' })
@@ -132,6 +149,23 @@ export class EngineeringController {
     return this.engineeringService.getSprintProgress(id, user.organizationId);
   }
 
+  @Get('sprints/:sprintId/tasks')
+  @ApiOperation({ summary: 'List tasks from sprint' })
+  @ApiParam({ name: 'sprintId', description: 'Sprint id' })
+  @ApiOkResponse({ description: 'Returns tasks linked to sprint.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async listTasksBySprint(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('sprintId') sprintId: string,
+  ) {
+    return {
+      items: await this.engineeringService.listTasksBySprint(
+        sprintId,
+        user.organizationId,
+      ),
+    };
+  }
+
   @Post('tasks')
   @Roles(Role.Admin, Role.Editor)
   @ApiOperation({ summary: 'Create task from feature' })
@@ -167,6 +201,20 @@ export class EngineeringController {
     @Query(new ZodValidationPipe(QueryTasksSchema)) query: QueryTasksInput,
   ) {
     return this.engineeringService.listTasks(query, user.organizationId);
+  }
+
+  @Get('tasks/:id')
+  @ApiOperation({ summary: 'Get task by id' })
+  @ApiParam({ name: 'id', description: 'Task id' })
+  @ApiOkResponse({ description: 'Returns task by id.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async getTask(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return {
+      task: await this.engineeringService.getTaskById(id, user.organizationId),
+    };
   }
 
   @Patch('tasks/:id')

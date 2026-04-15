@@ -8,6 +8,7 @@ import { ProductModule } from '../product/product.module';
 import { RequestsModule } from '../requests/requests.module';
 import { UsersModule } from '../users/users.module';
 import { RoadmapController } from './roadmap.controller';
+import { RequestsViewsController } from './requests-views.controller';
 import { RoadmapService } from './roadmap.service';
 import {
   RoadmapViewModel,
@@ -31,7 +32,7 @@ import { RoadmapViewsRepository } from './repositories/roadmap-views.repository'
       },
     ]),
   ],
-  controllers: [RoadmapController],
+  controllers: [RoadmapController, RequestsViewsController],
   providers: [RoadmapService, RoadmapViewsRepository],
   exports: [RoadmapService],
 })

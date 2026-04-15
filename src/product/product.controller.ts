@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -185,6 +186,18 @@ export class ProductController {
     return this.productService.listFeatures(query, user.organizationId);
   }
 
+  @Get('features/:id')
+  @ApiOperation({ summary: 'Get feature by id' })
+  @ApiParam({ name: 'id', description: 'Feature id' })
+  @ApiOkResponse({ description: 'Returns feature by id.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async getFeature(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.productService.findFeatureById(id, user.organizationId);
+  }
+
   @Patch('features/:id')
   @Roles(Role.Admin, Role.Editor)
   @ApiOperation({ summary: 'Update feature by id' })
@@ -224,6 +237,28 @@ export class ProductController {
   ) {
     return {
       feature: await this.productService.linkRequestToFeature(
+        id,
+        requestId,
+        user,
+      ),
+    };
+  }
+
+  @Delete('features/:id/requests/:requestId')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Unlink request from feature' })
+  @ApiParam({ name: 'id', description: 'Feature id' })
+  @ApiParam({ name: 'requestId', description: 'Request id' })
+  @ApiOkResponse({ description: 'Request unlinked from feature.' })
+  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async unlinkRequest(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('requestId') requestId: string,
+  ) {
+    return {
+      feature: await this.productService.unlinkRequestFromFeature(
         id,
         requestId,
         user,

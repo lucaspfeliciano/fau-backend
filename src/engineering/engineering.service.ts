@@ -499,6 +499,33 @@ export class EngineeringService {
     return this.findTaskById(taskId, organizationId);
   }
 
+  async getSprintById(
+    sprintId: string,
+    organizationId: string,
+  ): Promise<SprintEntity> {
+    return this.findSprintById(sprintId, organizationId);
+  }
+
+  async listTasksBySprint(
+    sprintId: string,
+    organizationId: string,
+  ): Promise<TaskEntity[]> {
+    await this.findSprintById(sprintId, organizationId);
+
+    const tasks = await this.tasksRepository.listByOrganization(organizationId);
+    return tasks.filter((task) => task.sprintId === sprintId);
+  }
+
+  async listTasksByFeature(
+    featureId: string,
+    organizationId: string,
+  ): Promise<TaskEntity[]> {
+    await this.productService.findFeatureById(featureId, organizationId);
+
+    const tasks = await this.tasksRepository.listByOrganization(organizationId);
+    return tasks.filter((task) => task.featureId === featureId);
+  }
+
   private async syncFeatureExecutionStatus(
     featureId: string,
     actor: AuthenticatedUser,

@@ -68,4 +68,13 @@ export class ExternalMappingsRepository {
   async deleteById(id: string, organizationId: string): Promise<void> {
     await this.externalMappingModel.deleteOne({ id, organizationId }).exec();
   }
+
+  async deleteByProvider(
+    organizationId: string,
+    provider: string,
+  ): Promise<void> {
+    await this.externalMappingModel
+      .deleteMany({ organizationId, provider })
+      .exec();
+  }
 }

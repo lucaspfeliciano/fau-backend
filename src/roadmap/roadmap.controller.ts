@@ -31,6 +31,10 @@ import {
   type CreateRoadmapViewInput,
 } from './dto/create-roadmap-view.schema';
 import {
+  CreateRoadmapTelemetryEventSchema,
+  type CreateRoadmapTelemetryEventInput,
+} from './dto/create-roadmap-telemetry-event.schema';
+import {
   QueryRoadmapItemsSchema,
   type QueryRoadmapItemsInput,
 } from './dto/query-roadmap-items.schema';
@@ -142,6 +146,76 @@ export class RoadmapController {
     query: QueryRoadmapItemsInput,
   ) {
     return this.roadmapService.listItems(query, user.organizationId);
+  }
+
+  @Get('items/:requestId')
+  @ApiOperation({ summary: 'Get roadmap item details by request id' })
+  @ApiParam({ name: 'requestId', description: 'Request id' })
+  @ApiOkResponse({ description: 'Returns roadmap item details.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  getItemByRequestId(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('requestId') requestId: string,
+  ) {
+    return this.roadmapService.getItemByRequestId(
+      requestId,
+      user.organizationId,
+    );
+  }
+
+  @Get('items/:requestId/overview')
+  @ApiOperation({ summary: 'Get roadmap overview for request item' })
+  @ApiParam({ name: 'requestId', description: 'Request id' })
+  @ApiOkResponse({ description: 'Returns roadmap overview for request.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  getItemOverviewByRequestId(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('requestId') requestId: string,
+  ) {
+    return this.roadmapService.getItemOverviewByRequestId(
+      requestId,
+      user.organizationId,
+    );
+  }
+
+  @Get('items/:requestId/traceability')
+  @ApiOperation({ summary: 'Get full traceability for roadmap request item' })
+  @ApiParam({ name: 'requestId', description: 'Request id' })
+  @ApiOkResponse({ description: 'Returns full traceability chain.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  getItemTraceabilityByRequestId(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('requestId') requestId: string,
+  ) {
+    return this.roadmapService.getItemTraceabilityByRequestId(
+      requestId,
+      user.organizationId,
+    );
+  }
+
+  @Post('telemetry/events')
+  @ApiOperation({ summary: 'Store roadmap telemetry event' })
+  @ApiBody({
+    schema: {
+      example: {
+        type: 'roadmap.filter_applied',
+        audience: 'product',
+        viewId: 'view-1',
+        elapsedMs: 480,
+        metadata: {
+          filter: 'status:planned',
+        },
+      },
+    },
+  })
+  @ApiCreatedResponse({ description: 'Telemetry event recorded.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  recordTelemetryEvent(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body(new ZodValidationPipe(CreateRoadmapTelemetryEventSchema))
+    body: CreateRoadmapTelemetryEventInput,
+  ) {
+    return this.roadmapService.recordTelemetryEvent(body, user);
   }
 
   @Get('views')

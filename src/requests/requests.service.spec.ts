@@ -6,6 +6,9 @@ import { DomainEventsService } from '../common/events/domain-events.service';
 import { outboxRepositoryMockProvider } from '../common/events/outbox-repository.mock';
 import { CustomersService } from '../customers/customers.service';
 import type { CustomerEntity } from '../customers/entities/customer.entity';
+import { FeedbackSource } from '../feedback/entities/feedback-source.enum';
+import type { FeedbackEntity } from '../feedback/entities/feedback.entity';
+import { FeedbackService } from '../feedback/feedback.service';
 import { Role } from '../common/auth/role.enum';
 import { RequestsService } from './requests.service';
 import { RequestSourceType } from './entities/request-source-type.enum';
@@ -30,6 +33,16 @@ describe('RequestsService', () => {
   beforeEach(async () => {
     const companies = new Map<string, CompanyEntity>();
     const customers = new Map<string, CustomerEntity>();
+    const feedbacks = new Map<string, FeedbackEntity>();
+
+    feedbacks.set('feedback-1', {
+      id: 'feedback-1',
+      workspaceId: actor.organizationId,
+      title: 'Exportacao por squad no Slack',
+      description: 'Clientes pediram exportacao segmentada por squad.',
+      source: FeedbackSource.Slack,
+      createdAt: new Date().toISOString(),
+    });
 
     const companiesServiceMock: Pick<
       CompaniesService,
@@ -94,6 +107,33 @@ describe('RequestsService', () => {
       },
     };
 
+    const feedbackServiceMock: Pick<
+      FeedbackService,
+      'findOneById' | 'ensureExists'
+    > = {
+      async findOneById(id, workspaceId) {
+        const feedback = feedbacks.get(id);
+
+        if (!feedback || feedback.workspaceId !== workspaceId) {
+          throw new NotFoundException('Feedback not found.');
+        }
+
+        return feedback;
+      },
+
+      async ensureExists(ids, workspaceId) {
+        const targetIds = ids ?? [];
+
+        for (const id of targetIds) {
+          const feedback = feedbacks.get(id);
+
+          if (!feedback || feedback.workspaceId !== workspaceId) {
+            throw new NotFoundException('Feedback not found.');
+          }
+        }
+      },
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RequestsService,
@@ -111,6 +151,10 @@ describe('RequestsService', () => {
         {
           provide: CustomersService,
           useValue: customersServiceMock,
+        },
+        {
+          provide: FeedbackService,
+          useValue: feedbackServiceMock,
         },
       ],
     }).compile();
@@ -422,5 +466,27 @@ describe('RequestsService', () => {
     );
     expect(metrics.manualMerged).toBe(1);
     expect(metrics.reversals).toBe(1);
+  });
+
+  it('should promote feedback into canonical request with source traceability', async () => {
+    const request = await requestsService.promoteFeedbackToRequest(
+      'feedback-1',
+      {
+        problems: ['Sem filtro por squad, relatorio perde utilidade.'],
+        solutions: ['Adicionar filtro por squad no modal de exportacao.'],
+        product: 'Analytics',
+        functionality: 'Dashboard Export',
+      },
+      actor,
+    );
+
+    expect(request.feedbackIds).toEqual(['feedback-1']);
+    expect(request.sourceType).toBe(RequestSourceType.Slack);
+    expect(request.sourceRef).toBe('feedback:feedback-1');
+    expect(request.tags).toContain('feedback-promoted');
+    expect(request.product).toBe('Analytics');
+    expect(request.functionality).toBe('Dashboard Export');
+    expect(request.problems.length).toBeGreaterThan(0);
+    expect(request.solutions.length).toBeGreaterThan(0);
   });
 });

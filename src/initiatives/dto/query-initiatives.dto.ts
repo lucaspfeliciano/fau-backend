@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsEnum,
   IsInt,
   IsOptional,
   IsString,
@@ -9,6 +10,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
+import { InitiativeStatus } from '../entities/initiative-status.enum';
 
 export class QueryInitiativesDto {
   @ApiPropertyOptional({ example: 1, default: 1 })
@@ -26,12 +28,13 @@ export class QueryInitiativesDto {
   @Max(100)
   limit?: number;
 
-  @ApiPropertyOptional({ example: 'planned' })
+  @ApiPropertyOptional({
+    enum: InitiativeStatus,
+    example: InitiativeStatus.Planned,
+  })
   @IsOptional()
-  @IsString()
-  @MinLength(2)
-  @MaxLength(40)
-  status?: string;
+  @IsEnum(InitiativeStatus)
+  status?: InitiativeStatus;
 
   @ApiPropertyOptional({ example: 'analytics' })
   @IsOptional()

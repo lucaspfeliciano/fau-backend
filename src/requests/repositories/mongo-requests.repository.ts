@@ -20,9 +20,12 @@ export class MongoRequestsRepository implements RequestsRepository {
   }
 
   async update(request: RequestEntity): Promise<void> {
+    const tenantId = request.workspaceId ?? request.organizationId;
+
     const normalizedRequest: Record<string, unknown> = {
       ...request,
-      organizationId: request.organizationId ?? request.workspaceId,
+      workspaceId: request.workspaceId ?? tenantId,
+      organizationId: request.organizationId ?? tenantId,
     };
 
     const setPayload: Record<string, unknown> = {};
@@ -49,10 +52,7 @@ export class MongoRequestsRepository implements RequestsRepository {
       .updateOne(
         {
           id: request.id,
-          $or: [
-            { workspaceId: request.workspaceId },
-            { organizationId: request.workspaceId },
-          ],
+          $or: [{ workspaceId: tenantId }, { organizationId: tenantId }],
         },
         updateOperation,
       )

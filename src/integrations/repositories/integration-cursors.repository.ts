@@ -43,4 +43,13 @@ export class IntegrationCursorsRepository {
       )
       .exec();
   }
+
+  async deleteByProvider(
+    organizationId: string,
+    provider: IntegrationProvider,
+  ): Promise<void> {
+    await this.integrationCursorModel
+      .deleteMany({ organizationId, provider })
+      .exec();
+  }
 }

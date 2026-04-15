@@ -1,11 +1,13 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   NotFoundException,
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -28,6 +30,10 @@ import { Roles } from '../common/auth/roles.decorator';
 import { RolesGuard } from '../common/auth/roles.guard';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe';
 import {
+  CreateChangelogEntrySchema,
+  type CreateChangelogEntryInput,
+} from './dto/create-changelog-entry.schema';
+import {
   CreateReleaseSchema,
   type CreateReleaseInput,
 } from './dto/create-release.schema';
@@ -35,6 +41,10 @@ import {
   NotificationPreferencesSchema,
   type NotificationPreferencesInput,
 } from './dto/notification-preferences.schema';
+import {
+  UpdateChangelogEntrySchema,
+  type UpdateChangelogEntryInput,
+} from './dto/update-changelog-entry.schema';
 import {
   UpdateReleaseSchema,
   type UpdateReleaseInput,
@@ -75,8 +85,19 @@ export class NotificationsController {
   @Get('notifications/preferences')
   @ApiOperation({ summary: 'List notification preferences' })
   @ApiOkResponse({ description: 'Returns preferences list.' })
-  getPreferences(@CurrentUser() user: AuthenticatedUser) {
-    return this.notificationsService.getPreferences(user.organizationId);
+  async getPreferences(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('teamId') teamId?: string,
+  ) {
+    const preferences = await this.notificationsService.getPreferences(
+      user.organizationId,
+    );
+
+    if (!teamId) {
+      return preferences;
+    }
+
+    return preferences.filter((item) => item.teamId === teamId);
   }
 
   @Get('notifications')
@@ -137,6 +158,27 @@ export class NotificationsController {
     return this.notificationsService.listReleases(user.organizationId);
   }
 
+  @Get('releases/:id')
+  @ApiOperation({ summary: 'Get release by id' })
+  @ApiParam({ name: 'id', description: 'Release id' })
+  @ApiOkResponse({ description: 'Returns release details.' })
+  async getRelease(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    try {
+      return await this.notificationsService.getReleaseById(
+        id,
+        user.organizationId,
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message === 'RELEASE_NOT_FOUND') {
+        throw new NotFoundException('Release not found.');
+      }
+      throw error;
+    }
+  }
+
   @Patch('releases/:id')
   @Roles(Role.Admin, Role.Editor)
   @ApiOperation({ summary: 'Update release by id' })
@@ -163,6 +205,113 @@ export class NotificationsController {
     } catch (error) {
       if (error instanceof Error && error.message === 'RELEASE_NOT_FOUND') {
         throw new NotFoundException('Release not found.');
+      }
+      throw error;
+    }
+  }
+
+  @Delete('releases/:id')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Delete release by id' })
+  @ApiParam({ name: 'id', description: 'Release id' })
+  @ApiOkResponse({ description: 'Release deleted successfully.' })
+  async deleteRelease(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    try {
+      await this.notificationsService.deleteRelease(id, user);
+      return {
+        deleted: true,
+      };
+    } catch (error) {
+      if (error instanceof Error && error.message === 'RELEASE_NOT_FOUND') {
+        throw new NotFoundException('Release not found.');
+      }
+      throw error;
+    }
+  }
+
+  @Post('releases/:id/publish')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Publish release by id' })
+  @ApiParam({ name: 'id', description: 'Release id' })
+  @ApiCreatedResponse({ description: 'Release published.' })
+  async publishRelease(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    try {
+      return await this.notificationsService.publishRelease(id, user);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'RELEASE_NOT_FOUND') {
+        throw new NotFoundException('Release not found.');
+      }
+      throw error;
+    }
+  }
+
+  @Get('changelog')
+  @ApiOperation({ summary: 'List published changelog entries' })
+  @ApiOkResponse({ description: 'Returns changelog entries.' })
+  listChangelog(@CurrentUser() user: AuthenticatedUser) {
+    return this.notificationsService.listChangelogEntries(user.organizationId);
+  }
+
+  @Post('changelog')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Create changelog entry' })
+  @ApiCreatedResponse({ description: 'Changelog entry created.' })
+  createChangelog(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body(new ZodValidationPipe(CreateChangelogEntrySchema))
+    body: CreateChangelogEntryInput,
+  ) {
+    return this.notificationsService.createChangelogEntry(body, user);
+  }
+
+  @Patch('changelog/:id')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Update changelog entry by id' })
+  @ApiParam({ name: 'id', description: 'Changelog entry id' })
+  @ApiOkResponse({ description: 'Changelog entry updated.' })
+  async updateChangelog(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(UpdateChangelogEntrySchema))
+    body: UpdateChangelogEntryInput,
+  ) {
+    try {
+      return await this.notificationsService.updateChangelogEntry(
+        id,
+        body,
+        user,
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message === 'RELEASE_NOT_FOUND') {
+        throw new NotFoundException('Changelog entry not found.');
+      }
+      throw error;
+    }
+  }
+
+  @Delete('changelog/:id')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Delete changelog entry by id' })
+  @ApiParam({ name: 'id', description: 'Changelog entry id' })
+  @ApiOkResponse({ description: 'Changelog entry deleted.' })
+  async deleteChangelog(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    try {
+      await this.notificationsService.deleteChangelogEntry(id, user);
+      return {
+        deleted: true,
+      };
+    } catch (error) {
+      if (error instanceof Error && error.message === 'RELEASE_NOT_FOUND') {
+        throw new NotFoundException('Changelog entry not found.');
       }
       throw error;
     }

@@ -16,6 +16,7 @@ import {
   ApiForbiddenResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
@@ -130,7 +131,7 @@ export class IntegrationsController {
   @Post('fireflies/import-transcript')
   @Roles(Role.Admin, Role.Editor)
   @ApiOperation({
-    summary: 'Import Fireflies transcript into AI processing pipeline',
+    summary: 'Import Fireflies transcript as raw feedback intake',
   })
   @ApiBody({
     schema: {
@@ -145,7 +146,7 @@ export class IntegrationsController {
     },
   })
   @ApiCreatedResponse({
-    description: 'Transcript imported and sent to AI extraction flow.',
+    description: 'Transcript imported and stored as feedback.',
   })
   importFirefliesTranscript(
     @CurrentUser() user: AuthenticatedUser,
@@ -278,7 +279,7 @@ export class IntegrationsController {
 
   @Post('slack/import-message')
   @Roles(Role.Admin, Role.Editor)
-  @ApiOperation({ summary: 'Import Slack message into AI processing pipeline' })
+  @ApiOperation({ summary: 'Import Slack message as raw feedback intake' })
   @ApiBody({
     schema: {
       example: {
@@ -288,7 +289,7 @@ export class IntegrationsController {
     },
   })
   @ApiCreatedResponse({
-    description: 'Slack message processed by AI pipeline.',
+    description: 'Slack message stored as feedback.',
   })
   importSlackMessage(
     @CurrentUser() user: AuthenticatedUser,
@@ -348,6 +349,21 @@ export class IntegrationsController {
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   getStatus(@CurrentUser() user: AuthenticatedUser) {
     return this.integrationsService.getStatus(user.organizationId);
+  }
+
+  @Post(':type/disconnect')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Disconnect integration provider' })
+  @ApiParam({
+    name: 'type',
+    description: 'Integration provider type (slack, hubspot, linear)',
+  })
+  @ApiCreatedResponse({ description: 'Integration disconnected.' })
+  disconnect(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('type') type: string,
+  ) {
+    return this.integrationsService.disconnectIntegration(type, user);
   }
 
   @Get('dashboard')

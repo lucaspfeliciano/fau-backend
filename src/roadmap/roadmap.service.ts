@@ -22,6 +22,7 @@ import type { CreateRoadmapViewInput } from './dto/create-roadmap-view.schema';
 import type { QueryRoadmapItemsInput } from './dto/query-roadmap-items.schema';
 import type { QueryRoadmapViewsInput } from './dto/query-roadmap-views.schema';
 import type { UpdateRoadmapViewInput } from './dto/update-roadmap-view.schema';
+import type { CreateRoadmapTelemetryEventInput } from './dto/create-roadmap-telemetry-event.schema';
 import {
   RoadmapAudience,
   RoadmapEtaConfidence,
@@ -59,6 +60,21 @@ export interface PaginatedRoadmapViewsResult {
   pageSize: number;
   total: number;
   totalPages: number;
+}
+
+export interface RoadmapItemOverviewResult {
+  item: RoadmapItemEntity;
+  summary: {
+    features: number;
+    tasks: number;
+    sprints: number;
+    releases: number;
+    customers: number;
+    companies: number;
+  };
+  traceability: Awaited<
+    ReturnType<NotificationsService['getRequestTraceability']>
+  >;
 }
 
 @Injectable()
@@ -332,6 +348,77 @@ export class RoadmapService {
         roadmapViewId: view.id,
       },
     });
+  }
+
+  async getItemByRequestId(
+    requestId: string,
+    organizationId: string,
+  ): Promise<RoadmapItemEntity> {
+    const request = await this.requestsService.findOneById(
+      requestId,
+      organizationId,
+    );
+
+    return this.mapRequestItems([request])[0];
+  }
+
+  async getItemOverviewByRequestId(
+    requestId: string,
+    organizationId: string,
+  ): Promise<RoadmapItemOverviewResult> {
+    const [item, traceability] = await Promise.all([
+      this.getItemByRequestId(requestId, organizationId),
+      this.notificationsService.getRequestTraceability(
+        requestId,
+        organizationId,
+      ),
+    ]);
+
+    return {
+      item,
+      summary: {
+        features: traceability.features.length,
+        tasks: traceability.tasks.length,
+        sprints: traceability.sprints.length,
+        releases: traceability.releases.length,
+        customers: traceability.customers.length,
+        companies: traceability.companies.length,
+      },
+      traceability,
+    };
+  }
+
+  getItemTraceabilityByRequestId(requestId: string, organizationId: string) {
+    return this.notificationsService.getRequestTraceability(
+      requestId,
+      organizationId,
+    );
+  }
+
+  recordTelemetryEvent(
+    input: CreateRoadmapTelemetryEventInput,
+    actor: AuthenticatedUser,
+  ) {
+    const occurredAt = new Date().toISOString();
+
+    this.domainEventsService.publish({
+      name: 'roadmap.telemetry_event_recorded',
+      occurredAt,
+      actorId: actor.id,
+      organizationId: actor.organizationId,
+      payload: {
+        type: input.type,
+        audience: input.audience,
+        viewId: input.viewId,
+        elapsedMs: input.elapsedMs,
+        metadata: input.metadata,
+      },
+    });
+
+    return {
+      recorded: true,
+      occurredAt,
+    };
   }
 
   private mapRequestItems(requests: RequestEntity[]): RoadmapItemEntity[] {

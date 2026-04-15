@@ -43,4 +43,8 @@ export class ReleasesRepository {
       .lean<ReleaseEntity[]>()
       .exec();
   }
+
+  async deleteById(id: string, organizationId: string): Promise<void> {
+    await this.releaseModel.deleteOne({ id, organizationId }).exec();
+  }
 }

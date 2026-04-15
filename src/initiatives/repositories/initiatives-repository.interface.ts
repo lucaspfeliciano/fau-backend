@@ -1,4 +1,5 @@
 import type { InitiativeEntity } from '../entities/initiative.entity';
+import { InitiativeStatus } from '../entities/initiative-status.enum';
 
 export const PLANNING_INITIATIVES_REPOSITORY =
   'PLANNING_INITIATIVES_REPOSITORY';
@@ -16,7 +17,7 @@ export interface InitiativesRepository {
     options: {
       page: number;
       limit: number;
-      status?: string;
+      status?: InitiativeStatus;
       search?: string;
     },
   ) => Promise<{ items: InitiativeEntity[]; total: number }>;

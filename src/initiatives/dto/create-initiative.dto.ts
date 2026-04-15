@@ -2,11 +2,13 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayMaxSize,
   IsArray,
+  IsEnum,
   IsOptional,
   IsString,
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { InitiativeStatus } from '../entities/initiative-status.enum';
 
 export class CreateInitiativeDto {
   @ApiProperty({ example: 'Melhorias de Analytics' })
@@ -35,11 +37,9 @@ export class CreateInitiativeDto {
   @MinLength(1, { each: true })
   requestIds?: string[];
 
-  @ApiProperty({ example: 'planned' })
-  @IsString()
-  @MinLength(2)
-  @MaxLength(40)
-  status!: string;
+  @ApiProperty({ enum: InitiativeStatus, example: InitiativeStatus.Planned })
+  @IsEnum(InitiativeStatus)
+  status!: InitiativeStatus;
 
   @ApiPropertyOptional({
     example: 'Priorizar squads enterprise no primeiro ciclo.',

@@ -33,12 +33,15 @@ import { Roles } from '../common/auth/roles.decorator';
 import { RolesGuard } from '../common/auth/roles.guard';
 import { CreatePlaygroundHypothesisDto } from './dto/create-playground-hypothesis.dto';
 import { CreatePlaygroundInsightDto } from './dto/create-playground-insight.dto';
+import { CreateLegacyPlaygroundNodeDto } from './dto/create-legacy-playground-node.dto';
 import { CreatePlaygroundWorkspaceDto } from './dto/create-playground-workspace.dto';
+import { QueryLegacyPlaygroundNodesDto } from './dto/query-legacy-playground-nodes.dto';
 import { QueryPlaygroundAssetsDto } from './dto/query-playground-assets.dto';
 import { QueryPlaygroundHypothesesDto } from './dto/query-playground-hypotheses.dto';
 import { QueryPlaygroundInsightsDto } from './dto/query-playground-insights.dto';
 import { QueryPlaygroundWorkspacesDto } from './dto/query-playground-workspaces.dto';
 import { PromotePlaygroundInsightToRequestDto } from './dto/promote-playground-insight-to-request.dto';
+import { UpdateLegacyPlaygroundNodeDto } from './dto/update-legacy-playground-node.dto';
 import { UpdatePlaygroundHypothesisDto } from './dto/update-playground-hypothesis.dto';
 import { UpdatePlaygroundInsightDto } from './dto/update-playground-insight.dto';
 import { UpdatePlaygroundWorkspaceDto } from './dto/update-playground-workspace.dto';
@@ -67,7 +70,9 @@ export class PlaygroundController {
   @Post('workspaces')
   @Roles(Role.Admin, Role.Editor)
   @ApiOperation({ summary: 'Create playground workspace' })
-  @ApiCreatedResponse({ description: 'Playground workspace created successfully.' })
+  @ApiCreatedResponse({
+    description: 'Playground workspace created successfully.',
+  })
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async createWorkspace(
@@ -102,7 +107,10 @@ export class PlaygroundController {
     @Param('id') id: string,
   ) {
     return {
-      workspace: await this.playgroundService.getWorkspace(id, user.organizationId),
+      workspace: await this.playgroundService.getWorkspace(
+        id,
+        user.organizationId,
+      ),
     };
   }
 
@@ -163,7 +171,9 @@ export class PlaygroundController {
       required: ['file'],
     },
   })
-  @ApiCreatedResponse({ description: 'Playground asset uploaded successfully.' })
+  @ApiCreatedResponse({
+    description: 'Playground asset uploaded successfully.',
+  })
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async uploadAsset(
@@ -192,11 +202,120 @@ export class PlaygroundController {
     return this.playgroundService.listAssets(id, query, user.organizationId);
   }
 
+  @Get('workspaces/:id/nodes')
+  @ApiOperation({ summary: 'List legacy nodes from playground workspace' })
+  @ApiParam({ name: 'id', description: 'Playground workspace id' })
+  @ApiOkResponse({ description: 'Returns paginated legacy nodes.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async listLegacyNodes(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Query(new ValidationPipe({ whitelist: true, transform: true }))
+    query: QueryLegacyPlaygroundNodesDto,
+  ) {
+    return this.playgroundService.listLegacyNodes(
+      id,
+      query,
+      user.organizationId,
+    );
+  }
+
+  @Post('workspaces/:id/nodes')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Create legacy node in playground workspace' })
+  @ApiParam({ name: 'id', description: 'Playground workspace id' })
+  @ApiCreatedResponse({ description: 'Legacy node created successfully.' })
+  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async createLegacyNode(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    body: CreateLegacyPlaygroundNodeDto,
+  ) {
+    return {
+      node: await this.playgroundService.createLegacyNode(id, body, user),
+    };
+  }
+
+  @Patch('nodes/:nodeId')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Update legacy node by id' })
+  @ApiParam({ name: 'nodeId', description: 'Legacy node id' })
+  @ApiOkResponse({ description: 'Legacy node updated successfully.' })
+  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async updateLegacyNode(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('nodeId') nodeId: string,
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    body: UpdateLegacyPlaygroundNodeDto,
+  ) {
+    return {
+      node: await this.playgroundService.updateLegacyNode(nodeId, body, user),
+    };
+  }
+
+  @Delete('nodes/:nodeId')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Delete legacy node by id' })
+  @ApiParam({ name: 'nodeId', description: 'Legacy node id' })
+  @ApiOkResponse({ description: 'Legacy node deleted successfully.' })
+  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async deleteLegacyNode(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('nodeId') nodeId: string,
+  ) {
+    await this.playgroundService.deleteLegacyNode(nodeId, user);
+    return {
+      success: true,
+    };
+  }
+
+  @Get('workspaces/:id/board-cards')
+  @ApiOperation({ summary: 'List legacy board cards for playground workspace' })
+  @ApiParam({ name: 'id', description: 'Playground workspace id' })
+  @ApiOkResponse({ description: 'Returns paginated legacy board cards.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async listLegacyBoardCards(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Query(new ValidationPipe({ whitelist: true, transform: true }))
+    query: QueryPlaygroundHypothesesDto,
+  ) {
+    return this.playgroundService.listLegacyBoardCards(
+      id,
+      query,
+      user.organizationId,
+    );
+  }
+
+  @Get('workspaces/:id/cards')
+  @ApiOperation({ summary: 'Fallback alias for legacy board cards' })
+  @ApiParam({ name: 'id', description: 'Playground workspace id' })
+  @ApiOkResponse({ description: 'Returns paginated legacy board cards.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async listLegacyCardsAlias(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Query(new ValidationPipe({ whitelist: true, transform: true }))
+    query: QueryPlaygroundHypothesesDto,
+  ) {
+    return this.playgroundService.listLegacyBoardCards(
+      id,
+      query,
+      user.organizationId,
+    );
+  }
+
   @Post('workspaces/:id/hypotheses')
   @Roles(Role.Admin, Role.Editor)
   @ApiOperation({ summary: 'Create hypothesis in playground workspace' })
   @ApiParam({ name: 'id', description: 'Playground workspace id' })
-  @ApiCreatedResponse({ description: 'Playground hypothesis created successfully.' })
+  @ApiCreatedResponse({
+    description: 'Playground hypothesis created successfully.',
+  })
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async createHypothesis(
@@ -221,7 +340,11 @@ export class PlaygroundController {
     @Query(new ValidationPipe({ whitelist: true, transform: true }))
     query: QueryPlaygroundHypothesesDto,
   ) {
-    return this.playgroundService.listHypotheses(id, query, user.organizationId);
+    return this.playgroundService.listHypotheses(
+      id,
+      query,
+      user.organizationId,
+    );
   }
 
   @Get('hypotheses/:id')
@@ -280,7 +403,9 @@ export class PlaygroundController {
   @Roles(Role.Admin, Role.Editor)
   @ApiOperation({ summary: 'Create insight in playground workspace' })
   @ApiParam({ name: 'id', description: 'Playground workspace id' })
-  @ApiCreatedResponse({ description: 'Playground insight created successfully.' })
+  @ApiCreatedResponse({
+    description: 'Playground insight created successfully.',
+  })
   @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async createInsight(

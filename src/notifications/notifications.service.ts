@@ -11,8 +11,10 @@ import { FeatureStatus } from '../product/entities/feature-status.enum';
 import { ProductService } from '../product/product.service';
 import { RequestsService } from '../requests/requests.service';
 import type { CreateReleaseInput } from './dto/create-release.schema';
+import type { CreateChangelogEntryInput } from './dto/create-changelog-entry.schema';
 import type { NotificationPreferencesInput } from './dto/notification-preferences.schema';
 import type { UpdateReleaseInput } from './dto/update-release.schema';
+import type { UpdateChangelogEntryInput } from './dto/update-changelog-entry.schema';
 import type {
   NotificationEntity,
   NotificationPreferenceEntity,
@@ -175,6 +177,19 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     return this.releasesRepository.listByOrganization(organizationId);
   }
 
+  async getReleaseById(
+    id: string,
+    organizationId: string,
+  ): Promise<ReleaseEntity> {
+    const release = await this.releasesRepository.findById(id, organizationId);
+
+    if (!release) {
+      throw new Error('RELEASE_NOT_FOUND');
+    }
+
+    return release;
+  }
+
   async updateRelease(
     id: string,
     input: UpdateReleaseInput,
@@ -223,6 +238,114 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     });
 
     return release;
+  }
+
+  async deleteRelease(id: string, actor: AuthenticatedUser): Promise<void> {
+    await this.getReleaseById(id, actor.organizationId);
+    await this.releasesRepository.deleteById(id, actor.organizationId);
+
+    this.domainEventsService.publish({
+      name: 'release.deleted',
+      occurredAt: new Date().toISOString(),
+      actorId: actor.id,
+      organizationId: actor.organizationId,
+      payload: {
+        releaseId: id,
+      },
+    });
+  }
+
+  async publishRelease(
+    id: string,
+    actor: AuthenticatedUser,
+  ): Promise<ReleaseEntity> {
+    const release = await this.updateRelease(
+      id,
+      {
+        status: 'published',
+        scheduledAt: new Date().toISOString(),
+      },
+      actor,
+    );
+
+    this.domainEventsService.publish({
+      name: 'release.published',
+      occurredAt: new Date().toISOString(),
+      actorId: actor.id,
+      organizationId: actor.organizationId,
+      payload: {
+        releaseId: release.id,
+        version: release.version,
+      },
+    });
+
+    return release;
+  }
+
+  async listChangelogEntries(organizationId: string) {
+    const releases = await this.listReleases(organizationId);
+
+    const items = releases
+      .filter((release) => release.status === 'published')
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .map((release) => this.mapReleaseToChangelogEntry(release));
+
+    return {
+      items,
+      total: items.length,
+    };
+  }
+
+  async createChangelogEntry(
+    input: CreateChangelogEntryInput,
+    actor: AuthenticatedUser,
+  ) {
+    const created = await this.createRelease(
+      {
+        version: this.buildChangelogVersion(),
+        title: input.title,
+        notes: input.description,
+        featureIds: [],
+        sprintIds: [],
+      },
+      actor,
+    );
+
+    const published = await this.updateRelease(
+      created.id,
+      {
+        status: 'published',
+        scheduledAt: input.publishedAt ?? new Date().toISOString(),
+      },
+      actor,
+    );
+
+    return this.mapReleaseToChangelogEntry(published);
+  }
+
+  async updateChangelogEntry(
+    id: string,
+    input: UpdateChangelogEntryInput,
+    actor: AuthenticatedUser,
+  ) {
+    const release = await this.updateRelease(
+      id,
+      {
+        title: input.title,
+        notes: input.description,
+        scheduledAt: input.publishedAt,
+      },
+      actor,
+    );
+
+    return this.mapReleaseToChangelogEntry(release);
+  }
+
+  async deleteChangelogEntry(
+    id: string,
+    actor: AuthenticatedUser,
+  ): Promise<void> {
+    await this.deleteRelease(id, actor);
   }
 
   async getRoadmapOverview(organizationId: string) {
@@ -556,5 +679,22 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     }
 
     return event.name;
+  }
+
+  private mapReleaseToChangelogEntry(release: ReleaseEntity) {
+    return {
+      id: release.id,
+      title: release.title,
+      description: release.notes,
+      publishedAt: release.scheduledAt ?? release.updatedAt,
+      releaseId: release.id,
+      version: release.version,
+      createdAt: release.createdAt,
+      updatedAt: release.updatedAt,
+    };
+  }
+
+  private buildChangelogVersion(): string {
+    return `changelog-${new Date().toISOString().replace(/[:.]/g, '-')}`;
   }
 }

@@ -2,11 +2,13 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayMaxSize,
   IsArray,
+  IsEnum,
   IsOptional,
   IsString,
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { InitiativeStatus } from '../entities/initiative-status.enum';
 
 export class UpdateInitiativeDto {
   @ApiPropertyOptional({ example: 'Melhorias de Analytics - Q2' })
@@ -37,12 +39,13 @@ export class UpdateInitiativeDto {
   @MinLength(1, { each: true })
   requestIds?: string[];
 
-  @ApiPropertyOptional({ example: 'in_progress' })
+  @ApiPropertyOptional({
+    enum: InitiativeStatus,
+    example: InitiativeStatus.InProgress,
+  })
   @IsOptional()
-  @IsString()
-  @MinLength(2)
-  @MaxLength(40)
-  status?: string;
+  @IsEnum(InitiativeStatus)
+  status?: InitiativeStatus;
 
   @ApiPropertyOptional({ example: 'Dependencia de design system liberada.' })
   @IsOptional()

@@ -33,6 +33,7 @@ export class OrganizationsService {
       id: randomUUID(),
       name: normalizedName,
       slug,
+      widgetApiKey: this.generateWidgetApiKey(),
       publicPortalEnabled: false,
       publicRoadmapEnabled: false,
       publicChangelogEnabled: false,
@@ -123,6 +124,61 @@ export class OrganizationsService {
     return this.organizationsRepository.findBySlug(slug.trim().toLowerCase());
   }
 
+  async getPublicSettingsBySlug(
+    slug: string,
+  ): Promise<OrganizationEntity | undefined> {
+    const organization = await this.findBySlug(slug);
+
+    if (!organization) {
+      return undefined;
+    }
+
+    if (!organization.widgetApiKey) {
+      organization.widgetApiKey = this.generateWidgetApiKey();
+      organization.updatedAt = new Date().toISOString();
+      await this.organizationsRepository.update(organization);
+    }
+
+    return organization;
+  }
+
+  async updatePublicSettingsBySlug(
+    slug: string,
+    input: {
+      rotateWidgetApiKey?: boolean;
+      publicPortalEnabled?: boolean;
+      publicRoadmapEnabled?: boolean;
+      publicChangelogEnabled?: boolean;
+    },
+  ): Promise<OrganizationEntity | undefined> {
+    const organization = await this.findBySlug(slug);
+
+    if (!organization) {
+      return undefined;
+    }
+
+    if (input.publicPortalEnabled !== undefined) {
+      organization.publicPortalEnabled = input.publicPortalEnabled;
+    }
+
+    if (input.publicRoadmapEnabled !== undefined) {
+      organization.publicRoadmapEnabled = input.publicRoadmapEnabled;
+    }
+
+    if (input.publicChangelogEnabled !== undefined) {
+      organization.publicChangelogEnabled = input.publicChangelogEnabled;
+    }
+
+    if (input.rotateWidgetApiKey || !organization.widgetApiKey) {
+      organization.widgetApiKey = this.generateWidgetApiKey();
+    }
+
+    organization.updatedAt = new Date().toISOString();
+    await this.organizationsRepository.update(organization);
+
+    return organization;
+  }
+
   private async generateUniqueSlug(name: string): Promise<string> {
     const baseSlug = this.slugify(name);
     let candidate = baseSlug;
@@ -150,5 +206,9 @@ export class OrganizationsService {
     }
 
     return `workspace-${randomUUID().slice(0, 8)}`;
+  }
+
+  private generateWidgetApiKey(): string {
+    return `wk_${randomUUID().replace(/-/g, '')}`;
   }
 }

@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { AiProcessingModule } from '../ai-processing/ai-processing.module';
 import { CompaniesModule } from '../companies/companies.module';
 import { AccessControlModule } from '../common/auth/access-control.module';
 import { DomainEventsModule } from '../common/events/domain-events.module';
 import { CustomersModule } from '../customers/customers.module';
 import { EngineeringModule } from '../engineering/engineering.module';
+import { FeedbackModule } from '../feedback/feedback.module';
 import { UsersModule } from '../users/users.module';
 import { HubSpotConnector } from './connectors/hubspot.connector';
 import { LinearConnector } from './connectors/linear.connector';
@@ -52,7 +52,7 @@ import { IntegrationsService } from './integrations.service';
     CompaniesModule,
     CustomersModule,
     EngineeringModule,
-    AiProcessingModule,
+    FeedbackModule,
     MongooseModule.forFeature([
       {
         name: IntegrationConfigModel.name,

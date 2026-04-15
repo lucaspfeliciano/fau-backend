@@ -4,12 +4,11 @@ import type { AuthenticatedUser } from '../common/auth/authenticated-user.interf
 import { Role } from '../common/auth/role.enum';
 import { DomainEventsService } from '../common/events/domain-events.service';
 import { outboxRepositoryMockProvider } from '../common/events/outbox-repository.mock';
-import { AiProcessingService } from '../ai-processing/ai-processing.service';
 import { CompaniesService } from '../companies/companies.service';
 import { CustomersService } from '../customers/customers.service';
 import { EngineeringService } from '../engineering/engineering.service';
 import { TaskStatus } from '../engineering/entities/task-status.enum';
-import { RequestSourceType } from '../requests/entities/request-source-type.enum';
+import { FeedbackService } from '../feedback/feedback.service';
 import { IntegrationProvider } from './entities/integration-provider.enum';
 import { ExternalMappingsRepository } from './repositories/external-mappings.repository';
 import { IntegrationConfigsRepository } from './repositories/integration-configs.repository';
@@ -295,19 +294,17 @@ describe('IntegrationsService', () => {
       },
     };
 
-    const aiProcessingServiceMock: Pick<AiProcessingService, 'importNotes'> = {
-      async importNotes() {
+    const feedbackServiceMock: Pick<FeedbackService, 'create'> = {
+      async create(input: any, currentActor: AuthenticatedUser) {
         return {
-          processedAt: new Date().toISOString(),
-          sourceType: RequestSourceType.FirefliesTranscript,
-          noteExternalId: 'ff-tr-1',
-          totalExtractedItems: 3,
-          createdRequests: 1,
-          deduplicatedRequests: 1,
-          mergedRequests: 0,
-          queuedForReviewItems: 1,
-          lowConfidenceItems: 1,
-          items: [],
+          id: `feedback-${randomUUID()}`,
+          workspaceId: currentActor.organizationId,
+          title: input.title,
+          description: input.description,
+          source: input.source,
+          publicSubmitterName: input.publicSubmitterName,
+          publicSubmitterEmail: input.publicSubmitterEmail,
+          createdAt: new Date().toISOString(),
         };
       },
     };
@@ -415,8 +412,8 @@ describe('IntegrationsService', () => {
           useValue: engineeringServiceMock,
         },
         {
-          provide: AiProcessingService,
-          useValue: aiProcessingServiceMock,
+          provide: FeedbackService,
+          useValue: feedbackServiceMock,
         },
         {
           provide: IntegrationConfigsRepository,
@@ -471,7 +468,7 @@ describe('IntegrationsService', () => {
     expect(getResult.apiKeyMasked).toContain('*');
   });
 
-  it('should import fireflies transcript and return sprint 11 contract response', async () => {
+  it('should import fireflies transcript and return feedback-first contract response', async () => {
     await integrationsService.configureFireflies(
       {
         apiKey: 'ff_prod_1234567890',
@@ -492,8 +489,8 @@ describe('IntegrationsService', () => {
     );
 
     expect(result.importId).toContain('ff-import-');
-    expect(result.extractedItemsCount).toBe(3);
-    expect(result.queuedForReviewCount).toBe(1);
+    expect(result.feedback.id).toContain('feedback-');
+    expect(result.feedback.source).toBe('fireflies');
   });
 
   it('should expose fireflies status and metrics', async () => {

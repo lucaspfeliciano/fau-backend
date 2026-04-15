@@ -47,4 +47,11 @@ export class StatusMappingsRepository {
       )
       .exec();
   }
+
+  async deleteByProvider(
+    organizationId: string,
+    provider: string,
+  ): Promise<void> {
+    await this.model.deleteMany({ organizationId, provider }).exec();
+  }
 }

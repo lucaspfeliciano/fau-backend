@@ -1,4 +1,5 @@
 import type { SprintEntity } from '../entities/sprint.entity';
+import { SprintStatus } from '../entities/sprint-status.enum';
 
 export const PLANNING_SPRINTS_REPOSITORY = 'PLANNING_SPRINTS_REPOSITORY';
 
@@ -16,7 +17,7 @@ export interface SprintsRepository {
       page: number;
       limit: number;
       initiativeId?: string;
-      status?: string;
+      status?: SprintStatus;
       squad?: string;
       search?: string;
     },
