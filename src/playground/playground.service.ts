@@ -248,9 +248,10 @@ export class PlaygroundService {
     const workspace = await this.findWorkspaceById(id, actor.organizationId);
 
     const assets =
-      workspace.id,
-       ator.organizationId,
-    );
+      await this.playgroundAssetsRepository.listByPlaygroundWorkspace(
+        workspace.id,
+        actor.organizationId,
+      );
 
     for (const asset of assets) {
       this.playgroundStorageService.deleteFile(asset.storageKey);
