@@ -1,7 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
 
-export type PlaygroundInsightDocument = HydratedDocument<PlaygroundInsightModel>;
+export type PlaygroundInsightDocument =
+  HydratedDocument<PlaygroundInsightModel>;
 
 @Schema({ collection: 'playground_insights', versionKey: false })
 export class PlaygroundInsightModel {
@@ -17,8 +18,8 @@ export class PlaygroundInsightModel {
   @Prop({ type: String, required: true })
   title!: string;
 
-  @Prop({ type: String, required: true })
-  summary!: string;
+  @Prop({ type: String, required: false })
+  summary?: string;
 
   @Prop({ type: String, required: true, index: true })
   type!: string;
@@ -41,6 +42,9 @@ export class PlaygroundInsightModel {
   @Prop({ type: [String], default: [] })
   requestIds!: string[];
 
+  @Prop({ type: Object })
+  metadata?: Record<string, unknown>;
+
   @Prop({ type: String, required: true })
   createdBy!: string;
 
@@ -62,6 +66,7 @@ PlaygroundInsightSchema.index({
   sortOrder: 1,
   updatedAt: -1,
 });
+
 PlaygroundInsightSchema.index({
   workspaceId: 1,
   playgroundWorkspaceId: 1,

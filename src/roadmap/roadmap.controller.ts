@@ -60,7 +60,7 @@ import { RoadmapService } from './roadmap.service';
 
 @ApiTags('Roadmap')
 @ApiBearerAuth()
-@Controller('roadmap')
+@Controller('roadmaps')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class RoadmapController {
   constructor(private readonly roadmapService: RoadmapService) {}

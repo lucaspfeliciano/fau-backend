@@ -13,6 +13,7 @@ export interface PlaygroundInsightEntity {
   evidenceAssetIds: string[];
   relatedHypothesisIds: string[];
   requestIds: string[];
+  metadata?: Record<string, unknown>;
   createdBy: string;
   createdAt: string;
   updatedAt: string;

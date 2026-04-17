@@ -3,4 +3,6 @@ export enum PlaygroundInsightType {
   Behavior = 'behavior',
   Opportunity = 'opportunity',
   Risk = 'risk',
+  Text = 'text',
+  Shape = 'shape',
 }

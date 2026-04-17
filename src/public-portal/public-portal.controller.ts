@@ -62,7 +62,10 @@ import {
   UpdatePublicWorkspaceSettingsSchema,
   type UpdatePublicWorkspaceSettingsInput,
 } from './dto/update-public-workspace-settings.schema';
-import { PublicPortalService } from './public-portal.service';
+import {
+  PublicPortalService,
+  type PublicFeedbackItem,
+} from './public-portal.service';
 
 @ApiTags('Public Portal')
 @Controller(['public', 'api/public'])
@@ -89,169 +92,63 @@ export class PublicPortalController {
     return this.publicPortalService.updateSettings(workspaceSlug, body);
   }
 
-  @Get('workspaces/:workspaceSlug/requests')
-  @ApiOperation({ summary: 'List public requests by workspace slug' })
+  // Feedbacks routes (must come BEFORE :workspaceSlug/requests to avoid conflicts)
+  @Get(':workspaceSlug/feedbacks/:feedbackId')
+  @ApiOperation({ summary: 'Get public feedback details by id' })
   @ApiParam({ name: 'workspaceSlug', description: 'Workspace slug' })
-  @ApiOkResponse({ description: 'Returns public requests list.' })
-  listRequestsByWorkspace(
+  @ApiParam({ name: 'feedbackId', description: 'Feedback id' })
+  @ApiOkResponse({ description: 'Returns feedback details.' })
+  getFeedback(
     @Param('workspaceSlug') workspaceSlug: string,
-    @Query(new ZodValidationPipe(QueryRequestsSchema))
-    query: QueryRequestsInput,
-  ) {
-    return this.publicPortalService.listRequests(workspaceSlug, query);
+    @Param('feedbackId') feedbackId: string,
+  ): Promise<{ feedback: PublicFeedbackItem }> {
+    return this.publicPortalService.getFeedback(workspaceSlug, feedbackId);
   }
 
-  @Post('workspaces/:workspaceSlug/requests/similar')
-  @ApiOperation({ summary: 'Find similar public requests by title/details' })
+  @Get(':workspaceSlug/feedbacks')
+  @ApiOperation({ summary: 'List public feedbacks by workspace slug' })
   @ApiParam({ name: 'workspaceSlug', description: 'Workspace slug' })
-  @ApiCreatedResponse({ description: 'Similar requests returned.' })
-  findSimilarRequestsByWorkspace(
+  @ApiOkResponse({ description: 'Returns public feedbacks list.' })
+  listFeedbacks(
     @Param('workspaceSlug') workspaceSlug: string,
-    @Body(new ZodValidationPipe(FindSimilarPublicRequestsSchema))
-    body: FindSimilarPublicRequestsInput,
-  ) {
-    return this.publicPortalService.findSimilarRequests(workspaceSlug, body);
+    @Query(new ZodValidationPipe(QueryPublicFeedbacksSchema))
+    query: QueryPublicFeedbacksInput,
+  ): Promise<{
+    items: PublicFeedbackItem[];
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  }> {
+    return this.publicPortalService.listFeedbacks(workspaceSlug, query);
   }
 
-  @Post('workspaces/:workspaceSlug/requests')
-  @ApiOperation({ summary: 'Submit public raw feedback by workspace slug' })
+  @Post(':workspaceSlug/feedbacks/vote')
+  @ApiOperation({ summary: 'Vote on a public feedback' })
   @ApiParam({ name: 'workspaceSlug', description: 'Workspace slug' })
-  @ApiCreatedResponse({ description: 'Public feedback submitted.' })
-  createRequestByWorkspace(
+  @ApiBody({
+    schema: {
+      example: {
+        feedbackId: 'fc296fbc-1e03-49b9-aac7-aaac7871ae0f',
+        sessionId: 'browser-session-123',
+      },
+    },
+  })
+  @ApiCreatedResponse({ description: 'Public vote registered on feedback.' })
+  voteFeedback(
     @Param('workspaceSlug') workspaceSlug: string,
-    @Body(new ZodValidationPipe(CreatePublicRequestSchema))
-    body: CreatePublicRequestInput,
-  ) {
-    return this.publicPortalService.createRequest(workspaceSlug, body);
-  }
-
-  @Get('workspaces/:workspaceSlug/requests/:requestId')
-  @ApiOperation({ summary: 'Get public request details by id' })
-  @ApiParam({ name: 'workspaceSlug', description: 'Workspace slug' })
-  @ApiParam({ name: 'requestId', description: 'Request id' })
-  @ApiOkResponse({ description: 'Returns request details.' })
-  getRequestByWorkspace(
-    @Param('workspaceSlug') workspaceSlug: string,
-    @Param('requestId') requestId: string,
-  ) {
-    return this.publicPortalService.getRequest(workspaceSlug, requestId);
-  }
-
-  @Get('workspaces/:workspaceSlug/requests/:requestId/comments')
-  @ApiOperation({ summary: 'List comments for public request' })
-  @ApiParam({ name: 'workspaceSlug', description: 'Workspace slug' })
-  @ApiParam({ name: 'requestId', description: 'Request id' })
-  @ApiOkResponse({ description: 'Returns public comments list.' })
-  listRequestCommentsByWorkspace(
-    @Param('workspaceSlug') workspaceSlug: string,
-    @Param('requestId') requestId: string,
-  ) {
-    return this.publicPortalService.listRequestComments(
-      workspaceSlug,
-      requestId,
-    );
-  }
-
-  @Post('workspaces/:workspaceSlug/requests/:requestId/comments')
-  @ApiOperation({ summary: 'Create comment for public request' })
-  @ApiParam({ name: 'workspaceSlug', description: 'Workspace slug' })
-  @ApiParam({ name: 'requestId', description: 'Request id' })
-  @ApiCreatedResponse({ description: 'Public comment created.' })
-  addRequestCommentByWorkspace(
-    @Param('workspaceSlug') workspaceSlug: string,
-    @Param('requestId') requestId: string,
-    @Body(new ZodValidationPipe(CreatePublicRequestPathCommentSchema))
-    body: CreatePublicRequestPathCommentInput,
-  ) {
-    return this.publicPortalService.addCommentToRequest(
-      workspaceSlug,
-      requestId,
-      body,
-    );
-  }
-
-  @Post('workspaces/:workspaceSlug/requests/:requestId/vote')
-  @ApiOperation({ summary: 'Vote on public request by id' })
-  @ApiParam({ name: 'workspaceSlug', description: 'Workspace slug' })
-  @ApiParam({ name: 'requestId', description: 'Request id' })
-  @ApiCreatedResponse({ description: 'Public vote registered.' })
-  voteRequestByWorkspace(
-    @Param('workspaceSlug') workspaceSlug: string,
-    @Param('requestId') requestId: string,
-    @Body(new ZodValidationPipe(CreatePublicRequestPathVoteSchema))
-    body: CreatePublicRequestPathVoteInput,
+    @Body(new ZodValidationPipe(CreatePublicFeedbackVoteSchema))
+    body: CreatePublicFeedbackVoteInput,
     @Req() request: Request,
-  ) {
-    return this.publicPortalService.voteOnRequest(
+  ): Promise<{ feedbackId: string; votes: number; duplicate: boolean }> {
+    return this.publicPortalService.voteFeedback(
       workspaceSlug,
-      requestId,
       body,
       request.ip,
     );
   }
 
-  @Get('workspaces/:workspaceSlug/roadmap')
-  @ApiOperation({ summary: 'List public roadmap by workspace slug' })
-  @ApiParam({ name: 'workspaceSlug', description: 'Workspace slug' })
-  @ApiOkResponse({ description: 'Returns public roadmap items.' })
-  listRoadmapByWorkspace(
-    @Param('workspaceSlug') workspaceSlug: string,
-    @Query(new ZodValidationPipe(QueryRoadmapItemsSchema))
-    query: QueryRoadmapItemsInput,
-  ) {
-    return this.publicPortalService.listRoadmap(workspaceSlug, query);
-  }
-
-  @Get('workspaces/:workspaceSlug/changelog')
-  @ApiOperation({ summary: 'List public changelog by workspace slug' })
-  @ApiParam({ name: 'workspaceSlug', description: 'Workspace slug' })
-  @ApiOkResponse({ description: 'Returns published releases for workspace.' })
-  listChangelogByWorkspace(@Param('workspaceSlug') workspaceSlug: string) {
-    return this.publicPortalService.listChangelog(workspaceSlug);
-  }
-
-  @Get(':workspaceSlug/requests')
-  @ApiOperation({ summary: 'List public feedback requests by workspace slug' })
-  @ApiParam({ name: 'workspaceSlug', description: 'Workspace slug' })
-  @ApiOkResponse({ description: 'Returns public requests list.' })
-  listRequests(
-    @Param('workspaceSlug') workspaceSlug: string,
-    @Query(new ZodValidationPipe(QueryRequestsSchema))
-    query: QueryRequestsInput,
-  ) {
-    return this.publicPortalService.listRequests(workspaceSlug, query);
-  }
-
-  @Post(':workspaceSlug/requests')
-  @ApiOperation({
-    summary:
-      'Deprecated alias: submit public raw feedback (prefer /public/:workspaceSlug/feedback)',
-  })
-  @ApiParam({ name: 'workspaceSlug', description: 'Workspace slug' })
-  @ApiBody({
-    schema: {
-      example: {
-        title: 'Preciso exportar dashboard por squad',
-        description: 'Hoje exporta sem filtro e fica inviavel para diretoria.',
-        publicSubmitterName: 'Maria',
-        publicSubmitterEmail: 'maria@empresa.com',
-        tags: ['dashboard', 'export'],
-      },
-    },
-  })
-  @ApiCreatedResponse({
-    description:
-      'Public feedback submitted. This legacy route is deprecated in favor of /feedback.',
-  })
-  createRequest(
-    @Param('workspaceSlug') workspaceSlug: string,
-    @Body(new ZodValidationPipe(CreatePublicRequestSchema))
-    body: CreatePublicRequestInput,
-  ) {
-    return this.publicPortalService.createRequest(workspaceSlug, body);
-  }
-
-  @Post(':workspaceSlug/feedback')
+  @Post(':workspaceSlug/feedbacks')
   @ApiOperation({ summary: 'Submit public raw feedback by workspace slug' })
   @ApiParam({ name: 'workspaceSlug', description: 'Workspace slug' })
   @ApiBody({
@@ -274,55 +171,126 @@ export class PublicPortalController {
     return this.publicPortalService.createFeedback(workspaceSlug, body);
   }
 
-  @Get(':workspaceSlug/feedbacks')
-  @ApiOperation({ summary: 'List public feedbacks by workspace slug' })
+  // Requests routes
+  @Get(':workspaceSlug/requests')
+  @ApiOperation({ summary: 'List public feedback requests by workspace slug' })
   @ApiParam({ name: 'workspaceSlug', description: 'Workspace slug' })
-  @ApiOkResponse({ description: 'Returns public feedbacks list.' })
-  listFeedbacks(
+  @ApiOkResponse({ description: 'Returns public requests list.' })
+  listRequests(
     @Param('workspaceSlug') workspaceSlug: string,
-    @Query(new ZodValidationPipe(QueryPublicFeedbacksSchema))
-    query: QueryPublicFeedbacksInput,
+    @Query(new ZodValidationPipe(QueryRequestsSchema))
+    query: QueryRequestsInput,
   ) {
-    return this.publicPortalService.listFeedbacks(workspaceSlug, query);
+    return this.publicPortalService.listRequests(workspaceSlug, query);
   }
 
-  @Get(':workspaceSlug/feedbacks/:feedbackId')
-  @ApiOperation({ summary: 'Get public feedback details by id' })
+  @Get(':workspaceSlug/requests/:requestId')
+  @ApiOperation({ summary: 'Get public request details by id' })
   @ApiParam({ name: 'workspaceSlug', description: 'Workspace slug' })
-  @ApiParam({ name: 'feedbackId', description: 'Feedback id' })
-  @ApiOkResponse({ description: 'Returns feedback details.' })
-  getFeedback(
+  @ApiParam({ name: 'requestId', description: 'Request id' })
+  @ApiOkResponse({ description: 'Returns request details.' })
+  getRequest(
     @Param('workspaceSlug') workspaceSlug: string,
-    @Param('feedbackId') feedbackId: string,
+    @Param('requestId') requestId: string,
   ) {
-    return this.publicPortalService.getFeedback(workspaceSlug, feedbackId);
+    return this.publicPortalService.getRequest(workspaceSlug, requestId);
   }
 
-  @Post(':workspaceSlug/feedbacks/vote')
-  @ApiOperation({ summary: 'Vote on a public feedback' })
+  @Get(':workspaceSlug/requests/:requestId/comments')
+  @ApiOperation({ summary: 'List comments for public request' })
   @ApiParam({ name: 'workspaceSlug', description: 'Workspace slug' })
-  @ApiBody({
-    schema: {
-      example: {
-        feedbackId: 'fc296fbc-1e03-49b9-aac7-aaac7871ae0f',
-        sessionId: 'browser-session-123',
-      },
-    },
-  })
-  @ApiCreatedResponse({ description: 'Public vote registered on feedback.' })
-  voteFeedback(
+  @ApiParam({ name: 'requestId', description: 'Request id' })
+  @ApiOkResponse({ description: 'Returns public comments list.' })
+  listRequestComments(
     @Param('workspaceSlug') workspaceSlug: string,
-    @Body(new ZodValidationPipe(CreatePublicFeedbackVoteSchema))
-    body: CreatePublicFeedbackVoteInput,
+    @Param('requestId') requestId: string,
+  ) {
+    return this.publicPortalService.listRequestComments(
+      workspaceSlug,
+      requestId,
+    );
+  }
+
+  @Post(':workspaceSlug/requests/:requestId/comments')
+  @ApiOperation({ summary: 'Create comment for public request' })
+  @ApiParam({ name: 'workspaceSlug', description: 'Workspace slug' })
+  @ApiParam({ name: 'requestId', description: 'Request id' })
+  @ApiCreatedResponse({ description: 'Public comment created.' })
+  addRequestComment(
+    @Param('workspaceSlug') workspaceSlug: string,
+    @Param('requestId') requestId: string,
+    @Body(new ZodValidationPipe(CreatePublicRequestPathCommentSchema))
+    body: CreatePublicRequestPathCommentInput,
+  ) {
+    return this.publicPortalService.addCommentToRequest(
+      workspaceSlug,
+      requestId,
+      body,
+    );
+  }
+
+  @Post(':workspaceSlug/requests/:requestId/vote')
+  @ApiOperation({ summary: 'Vote on public request by id' })
+  @ApiParam({ name: 'workspaceSlug', description: 'Workspace slug' })
+  @ApiParam({ name: 'requestId', description: 'Request id' })
+  @ApiCreatedResponse({ description: 'Public vote registered.' })
+  voteRequestById(
+    @Param('workspaceSlug') workspaceSlug: string,
+    @Param('requestId') requestId: string,
+    @Body(new ZodValidationPipe(CreatePublicRequestPathVoteSchema))
+    body: CreatePublicRequestPathVoteInput,
     @Req() request: Request,
   ) {
-    return this.publicPortalService.voteFeedback(
+    return this.publicPortalService.voteOnRequest(
       workspaceSlug,
+      requestId,
       body,
       request.ip,
     );
   }
 
+  @Post(':workspaceSlug/requests/similar')
+  @ApiOperation({ summary: 'Find similar public requests by title/details' })
+  @ApiParam({ name: 'workspaceSlug', description: 'Workspace slug' })
+  @ApiCreatedResponse({ description: 'Similar requests returned.' })
+  findSimilarRequests(
+    @Param('workspaceSlug') workspaceSlug: string,
+    @Body(new ZodValidationPipe(FindSimilarPublicRequestsSchema))
+    body: FindSimilarPublicRequestsInput,
+  ) {
+    return this.publicPortalService.findSimilarRequests(workspaceSlug, body);
+  }
+
+  @Post(':workspaceSlug/requests')
+  @ApiOperation({
+    summary:
+      'Deprecated alias: submit public raw feedback (prefer /public/:workspaceSlug/feedbacks)',
+  })
+  @ApiParam({ name: 'workspaceSlug', description: 'Workspace slug' })
+  @ApiBody({
+    schema: {
+      example: {
+        title: 'Preciso exportar dashboard por squad',
+        description: 'Hoje exporta sem filtro e fica inviavel para diretoria.',
+        publicSubmitterName: 'Maria',
+        publicSubmitterEmail: 'maria@empresa.com',
+        tags: ['dashboard', 'export'],
+      },
+    },
+  })
+  @ApiCreatedResponse({
+    description:
+      'Public feedback submitted. This legacy route is deprecated in favor of /feedbacks.',
+  })
+  createRequest(
+    @Param('workspaceSlug') workspaceSlug: string,
+    @Body(new ZodValidationPipe(CreatePublicRequestSchema))
+    body: CreatePublicRequestInput,
+  ) {
+    return this.publicPortalService.createRequest(workspaceSlug, body);
+  }
+
+  // Other routes
   @Post(':workspaceSlug/votes')
   @ApiOperation({
     summary: 'Vote on a public request (deprecated - use /feedbacks/vote)',
@@ -372,7 +340,7 @@ export class PublicPortalController {
     return this.publicPortalService.addComment(workspaceSlug, body);
   }
 
-  @Get(':workspaceSlug/roadmap')
+  @Get(':workspaceSlug/roadmaps')
   @ApiOperation({ summary: 'List public roadmap by workspace slug' })
   @ApiParam({ name: 'workspaceSlug', description: 'Workspace slug' })
   @ApiOkResponse({ description: 'Returns public roadmap items.' })
@@ -384,7 +352,7 @@ export class PublicPortalController {
     return this.publicPortalService.listRoadmap(workspaceSlug, query);
   }
 
-  @Get(':workspaceSlug/changelog')
+  @Get(':workspaceSlug/changelogs')
   @ApiOperation({ summary: 'List public changelog by workspace slug' })
   @ApiParam({ name: 'workspaceSlug', description: 'Workspace slug' })
   @ApiOkResponse({ description: 'Returns published releases for workspace.' })

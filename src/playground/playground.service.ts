@@ -588,6 +588,7 @@ export class PlaygroundService {
       evidenceAssetIds,
       relatedHypothesisIds,
       requestIds: [],
+      metadata: input.metadata,
       createdBy: actor.id,
       createdAt: now,
       updatedAt: now,
@@ -719,6 +720,7 @@ export class PlaygroundService {
           input.metadata,
           'relatedHypothesisIds',
         ),
+        metadata: input.metadata,
       },
       actor,
     );
@@ -772,6 +774,10 @@ export class PlaygroundService {
     );
     if (relatedHypothesisIds !== undefined) {
       updateInput.relatedHypothesisIds = relatedHypothesisIds;
+    }
+
+    if (input.metadata !== undefined) {
+      updateInput.metadata = input.metadata;
     }
 
     const insight = await this.updateInsight(nodeId, updateInput, actor);
@@ -975,6 +981,10 @@ export class PlaygroundService {
         relatedHypothesisIds,
       );
       insight.relatedHypothesisIds = relatedHypothesisIds;
+    }
+
+    if (input.metadata !== undefined) {
+      insight.metadata = input.metadata;
     }
 
     insight.updatedAt = new Date().toISOString();
@@ -1212,6 +1222,8 @@ export class PlaygroundService {
         sortOrder: insight.sortOrder,
         relatedHypothesisIds: insight.relatedHypothesisIds,
         requestIds: insight.requestIds,
+        // Preservar metadata customizada (ex: shape properties)
+        ...(insight.metadata || {}),
       },
       createdAt: insight.createdAt,
       updatedAt: insight.updatedAt,
@@ -1221,11 +1233,12 @@ export class PlaygroundService {
   private mapLegacyNodeType(type: string): PlaygroundInsightType {
     const normalized = type.trim().toLowerCase();
 
+    // Tipos estruturados
     if (normalized === 'pain_point' || normalized === 'problem') {
       return PlaygroundInsightType.PainPoint;
     }
 
-    if (normalized === 'behavior') {
+    if (normalized === 'behavior' || normalized === 'note') {
       return PlaygroundInsightType.Behavior;
     }
 
@@ -1233,6 +1246,29 @@ export class PlaygroundService {
       return PlaygroundInsightType.Risk;
     }
 
+    if (
+      normalized === 'opportunity' ||
+      normalized === 'solution' ||
+      normalized === 'insight'
+    ) {
+      return PlaygroundInsightType.Opportunity;
+    }
+
+    // Tipos de desenho/texto livre (novos)
+    if (normalized === 'text') {
+      return PlaygroundInsightType.Text;
+    }
+
+    if (normalized === 'shape') {
+      return PlaygroundInsightType.Shape;
+    }
+
+    // Evidence também mapeia para opportunity por padrão
+    if (normalized === 'evidence') {
+      return PlaygroundInsightType.Opportunity;
+    }
+
+    // Fallback para opportunity
     return PlaygroundInsightType.Opportunity;
   }
 

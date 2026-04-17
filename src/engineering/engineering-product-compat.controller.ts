@@ -15,7 +15,7 @@ import { EngineeringService } from './engineering.service';
 
 @ApiTags('Engineering Compatibility')
 @ApiBearerAuth()
-@Controller('product/features')
+@Controller('products/features')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class EngineeringProductCompatController {
   constructor(private readonly engineeringService: EngineeringService) {}

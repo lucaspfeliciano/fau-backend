@@ -5,6 +5,7 @@ import {
   IsBoolean,
   IsEnum,
   IsInt,
+  IsObject,
   IsOptional,
   IsString,
   Max,
@@ -15,7 +16,9 @@ import {
 import { PlaygroundInsightType } from '../entities/playground-insight-type.enum';
 
 export class CreatePlaygroundInsightDto {
-  @ApiProperty({ example: 'Export modal overloads users with irrelevant options' })
+  @ApiProperty({
+    example: 'Export modal overloads users with irrelevant options',
+  })
   @IsString()
   @MinLength(3)
   @MaxLength(180)
@@ -76,4 +79,18 @@ export class CreatePlaygroundInsightDto {
   @IsString({ each: true })
   @MinLength(1, { each: true })
   relatedHypothesisIds?: string[];
+
+  @ApiPropertyOptional({
+    example: {
+      shapeType: 'rectangle',
+      strokeColor: '#000000',
+      fillColor: '#ffffff',
+      strokeWidth: 2,
+    },
+    description:
+      'Custom metadata for node types like shape (visual properties) and text',
+  })
+  @IsOptional()
+  @IsObject()
+  metadata?: Record<string, unknown>;
 }

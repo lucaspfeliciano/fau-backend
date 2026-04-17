@@ -5,6 +5,7 @@ import {
   IsBoolean,
   IsEnum,
   IsInt,
+  IsObject,
   IsOptional,
   IsString,
   Max,
@@ -81,4 +82,18 @@ export class UpdatePlaygroundInsightDto {
   @IsString({ each: true })
   @MinLength(1, { each: true })
   relatedHypothesisIds?: string[];
+
+  @ApiPropertyOptional({
+    example: {
+      shapeType: 'circle',
+      strokeColor: '#3b82f6',
+      fillColor: '#dbeafe',
+      strokeWidth: 3,
+    },
+    description:
+      'Custom metadata for node types like shape (visual properties) and text',
+  })
+  @IsOptional()
+  @IsObject()
+  metadata?: Record<string, unknown>;
 }

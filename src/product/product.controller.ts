@@ -55,7 +55,7 @@ import { ProductService } from './product.service';
 
 @ApiTags('Product')
 @ApiBearerAuth()
-@Controller('product')
+@Controller('products')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ProductController {
   constructor(private readonly productService: ProductService) {}

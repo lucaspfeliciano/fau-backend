@@ -147,7 +147,13 @@ export class PublicPortalService {
   async listFeedbacks(
     workspaceSlug: string,
     query: { page?: number; limit?: number; search?: string },
-  ) {
+  ): Promise<{
+    items: PublicFeedbackItem[];
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  }> {
     const workspace = await this.resolveWorkspace(workspaceSlug);
     this.ensurePublicPortalEnabled(workspace);
 
@@ -169,7 +175,10 @@ export class PublicPortalService {
     };
   }
 
-  async getFeedback(workspaceSlug: string, feedbackId: string) {
+  async getFeedback(
+    workspaceSlug: string,
+    feedbackId: string,
+  ): Promise<{ feedback: PublicFeedbackItem }> {
     const workspace = await this.resolveWorkspace(workspaceSlug);
     this.ensurePublicPortalEnabled(workspace);
 
@@ -187,7 +196,7 @@ export class PublicPortalService {
     workspaceSlug: string,
     input: { feedbackId: string; sessionId?: string },
     clientIp?: string,
-  ) {
+  ): Promise<{ feedbackId: string; votes: number; duplicate: boolean }> {
     const workspace = await this.resolveWorkspace(workspaceSlug);
     this.ensurePublicPortalEnabled(workspace);
 

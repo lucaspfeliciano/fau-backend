@@ -28,7 +28,7 @@ import { FeedbackService } from './feedback.service';
 
 @ApiTags('Feedback')
 @ApiBearerAuth()
-@Controller('feedback')
+@Controller('feedbacks')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class FeedbackController {
   constructor(private readonly feedbackService: FeedbackService) {}
