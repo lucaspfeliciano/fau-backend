@@ -8,4 +8,8 @@ export interface RequestCommentsRepository {
     requestId: string,
     organizationId: string,
   ): Promise<RequestCommentEntity[]>;
+  countByRequestIds(
+    requestIds: string[],
+    organizationId: string,
+  ): Promise<Map<string, number>>;
 }

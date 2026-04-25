@@ -12,6 +12,8 @@ import {
 } from 'class-validator';
 import { FeedbackSource } from '../entities/feedback-source.enum';
 
+export type FeedbackSortBy = 'recent' | 'votes';
+
 export class QueryFeedbackDto {
   @ApiPropertyOptional({ example: 1, default: 1 })
   @IsOptional()
@@ -46,4 +48,9 @@ export class QueryFeedbackDto {
   @MinLength(1)
   @MaxLength(120)
   search?: string;
+
+  @ApiPropertyOptional({ enum: ['recent', 'votes'], example: 'recent' })
+  @IsOptional()
+  @IsEnum(['recent', 'votes'] as const)
+  sortBy?: FeedbackSortBy;
 }

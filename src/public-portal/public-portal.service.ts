@@ -8,6 +8,7 @@ import { Role } from '../common/auth/role.enum';
 import { CreateFeedbackDto } from '../feedback/dto/create-feedback.dto';
 import { FeedbackSource } from '../feedback/entities/feedback-source.enum';
 import { FeedbackService } from '../feedback/feedback.service';
+import type { FeedbackComment } from '../feedback/entities/feedback.entity';
 import type { OrganizationEntity } from '../organizations/entities/organization.entity';
 import { OrganizationsService } from '../organizations/organizations.service';
 import type { QueryRequestsInput } from '../requests/dto/query-requests.schema';
@@ -22,6 +23,7 @@ import type { CreatePublicRequestPathVoteInput } from './dto/create-public-reque
 import type { CreatePublicVoteInput } from './dto/create-public-vote.schema';
 import type { FindSimilarPublicRequestsInput } from './dto/find-similar-public-requests.schema';
 import type { UpdatePublicWorkspaceSettingsInput } from './dto/update-public-workspace-settings.schema';
+import type { QueryPublicFeedbacksInput } from '../feedback/dto/query-public-feedbacks.schema';
 
 export interface PublicRequestItem {
   id: string;
@@ -58,22 +60,39 @@ export interface PublicRoadmapItem {
   updatedAt: string;
 }
 
+export interface PublicFeedbackComment {
+  id: string;
+  feedbackId: string;
+  text: string;
+  name?: string;
+  createdAt: string;
+}
+
 export interface PublicFeedbackItem {
   id: string;
   title: string;
   description: string;
   source: string;
+  status?: string;
   publicSubmitterName?: string;
   votes: number;
+  commentCount: number;
+  hasUserVoted: boolean;
+  comments?: PublicFeedbackComment[];
   createdAt: string;
 }
 
 export interface PublicWorkspaceSettings {
   workspaceSlug: string;
+  workspaceName: string;
+  logoUrl?: string;
+  subtitle?: string;
   widgetApiKey?: string;
+  widgetEnabled: boolean;
   publicPortalEnabled: boolean;
   publicRoadmapEnabled: boolean;
   publicChangelogEnabled: boolean;
+  updatedAt: string;
 }
 
 @Injectable()
@@ -124,7 +143,7 @@ export class PublicPortalService {
   async createFeedback(
     workspaceSlug: string,
     input: CreatePublicRequestInput,
-  ): Promise<{ feedback: PublicFeedbackItem }> {
+  ): Promise<PublicFeedbackItem> {
     const workspace = await this.resolveWorkspace(workspaceSlug);
     this.ensurePublicPortalEnabled(workspace);
 
@@ -139,14 +158,12 @@ export class PublicPortalService {
       this.buildPublicPortalActor(workspace.id),
     );
 
-    return {
-      feedback: this.toPublicFeedbackItem(feedback),
-    };
+    return this.toPublicFeedbackItem(feedback);
   }
 
   async listFeedbacks(
     workspaceSlug: string,
-    query: { page?: number; limit?: number; search?: string },
+    query: QueryPublicFeedbacksInput,
   ): Promise<{
     items: PublicFeedbackItem[];
     page: number;
@@ -162,12 +179,15 @@ export class PublicPortalService {
         page: query.page ?? 1,
         limit: query.limit ?? 20,
         search: query.search,
+        sortBy: query.sortBy,
       },
       workspace.id,
     );
 
     return {
-      items: result.items.map((item) => this.toPublicFeedbackItem(item)),
+      items: result.items.map((item) =>
+        this.toPublicFeedbackItem(item, query.sessionId as string | undefined),
+      ),
       page: result.page,
       limit: result.limit,
       total: result.total,
@@ -178,7 +198,8 @@ export class PublicPortalService {
   async getFeedback(
     workspaceSlug: string,
     feedbackId: string,
-  ): Promise<{ feedback: PublicFeedbackItem }> {
+    sessionId?: string,
+  ): Promise<PublicFeedbackItem> {
     const workspace = await this.resolveWorkspace(workspaceSlug);
     this.ensurePublicPortalEnabled(workspace);
 
@@ -187,9 +208,20 @@ export class PublicPortalService {
       workspace.id,
     );
 
-    return {
-      feedback: this.toPublicFeedbackItem(feedback),
-    };
+    const rawComments = (feedback.comments ?? []) as FeedbackComment[];
+    /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
+    const comments: PublicFeedbackComment[] = rawComments.map(
+      (c: FeedbackComment) => ({
+        id: c.id,
+        feedbackId: c.feedbackId,
+        text: c.text,
+        name: c.name,
+        createdAt: c.createdAt,
+      }),
+    );
+    /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
+
+    return { ...this.toPublicFeedbackItem(feedback, sessionId), comments };
   }
 
   async voteFeedback(
@@ -223,6 +255,7 @@ export class PublicPortalService {
     const feedback = await this.feedbackService.voteFromPublicPortal(
       input.feedbackId,
       workspace.id,
+      fingerprint ?? undefined,
     );
 
     return {
@@ -273,6 +306,76 @@ export class PublicPortalService {
     });
   }
 
+  async findSimilarFeedbacks(
+    workspaceSlug: string,
+    input: { title: string; details?: string },
+  ): Promise<{
+    items: {
+      feedbackId: string;
+      title: string;
+      description: string;
+      votes: number;
+      similarityScore: number;
+    }[];
+  }> {
+    const workspace = await this.resolveWorkspace(workspaceSlug);
+    this.ensurePublicPortalEnabled(workspace);
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+    return this.feedbackService.findSimilar(workspace.id, input) as Promise<{
+      items: {
+        feedbackId: string;
+        title: string;
+        description: string;
+        votes: number;
+        similarityScore: number;
+      }[];
+    }>;
+  }
+
+  async addFeedbackComment(
+    workspaceSlug: string,
+    feedbackId: string,
+    input: { text: string; name?: string },
+  ): Promise<PublicFeedbackComment> {
+    const workspace = await this.resolveWorkspace(workspaceSlug);
+    this.ensurePublicPortalEnabled(workspace);
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+    return this.feedbackService.addPublicComment(
+      feedbackId,
+      workspace.id,
+      input,
+    ) as Promise<PublicFeedbackComment>;
+  }
+
+  async listFeedbackComments(
+    workspaceSlug: string,
+    feedbackId: string,
+  ): Promise<{ items: PublicFeedbackComment[]; total: number }> {
+    const workspace = await this.resolveWorkspace(workspaceSlug);
+    this.ensurePublicPortalEnabled(workspace);
+
+    const feedback = await this.feedbackService.findOneById(
+      feedbackId,
+      workspace.id,
+    );
+    const rawComments2 = (feedback.comments ?? []) as FeedbackComment[];
+    /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
+    const comments: PublicFeedbackComment[] = rawComments2.map(
+      (c: FeedbackComment) => ({
+        id: c.id,
+        feedbackId: c.feedbackId,
+        text: c.text,
+        name: c.name,
+        createdAt: c.createdAt,
+      }),
+    );
+    /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
+
+    return { items: comments, total: comments.length };
+  }
+
   async getRequest(workspaceSlug: string, requestId: string) {
     const workspace = await this.resolveWorkspace(workspaceSlug);
     this.ensurePublicPortalEnabled(workspace);
@@ -282,9 +385,7 @@ export class PublicPortalService {
       workspace.id,
     );
 
-    return {
-      request: this.toPublicRequestItem(request),
-    };
+    return this.toPublicRequestItem(request);
   }
 
   async listRequestComments(workspaceSlug: string, requestId: string) {
@@ -394,13 +495,11 @@ export class PublicPortalService {
     );
 
     return {
-      comment: {
-        id: comment.id,
-        requestId: comment.requestId,
-        text: comment.comment,
-        publicAuthorName: comment.publicAuthorName,
-        createdAt: comment.createdAt,
-      },
+      id: comment.id,
+      requestId: comment.requestId,
+      text: comment.comment,
+      publicAuthorName: comment.publicAuthorName,
+      createdAt: comment.createdAt,
     };
   }
 
@@ -519,22 +618,45 @@ export class PublicPortalService {
     };
   }
 
-  private toPublicFeedbackItem(item: {
-    id: string;
-    title: string;
-    description: string;
-    source: string;
-    publicSubmitterName?: string;
-    votes?: number;
-    createdAt: string;
-  }): PublicFeedbackItem {
+  private toPublicFeedbackItem(
+    item: {
+      id: string;
+      title: string;
+      description: string;
+      source: string;
+      status?: string;
+      publicSubmitterName?: string;
+      votes?: number;
+      voterIds?: string[];
+      comments?: {
+        id: string;
+        feedbackId: string;
+        text: string;
+        name?: string;
+        createdAt: string;
+      }[];
+      createdAt: string;
+    },
+    sessionId?: string,
+  ): PublicFeedbackItem {
+    const fingerprint = sessionId
+      ? this.resolveVoteFingerprint(sessionId, undefined)
+      : undefined;
+    const hasUserVoted =
+      fingerprint && item.voterIds
+        ? item.voterIds.includes(fingerprint)
+        : false;
+
     return {
       id: item.id,
       title: item.title,
       description: item.description,
       source: item.source,
+      status: item.status,
       publicSubmitterName: item.publicSubmitterName,
       votes: item.votes ?? 0,
+      commentCount: (item.comments ?? []).length,
+      hasUserVoted,
       createdAt: item.createdAt,
     };
   }
@@ -544,10 +666,15 @@ export class PublicPortalService {
   ): PublicWorkspaceSettings {
     return {
       workspaceSlug: workspace.slug,
+      workspaceName: workspace.name,
+      logoUrl: workspace.logoUrl,
+      subtitle: workspace.subtitle,
       widgetApiKey: workspace.widgetApiKey,
+      widgetEnabled: workspace.widgetEnabled,
       publicPortalEnabled: workspace.publicPortalEnabled,
       publicRoadmapEnabled: workspace.publicRoadmapEnabled,
       publicChangelogEnabled: workspace.publicChangelogEnabled,
+      updatedAt: workspace.updatedAt,
     };
   }
 

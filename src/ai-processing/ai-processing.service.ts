@@ -12,6 +12,10 @@ import { RequestSourceType } from '../requests/entities/request-source-type.enum
 import type { RequestEntity } from '../requests/entities/request.entity';
 import { RequestsService } from '../requests/requests.service';
 import type { ApproveReviewQueueBatchInput } from './dto/approve-review-queue-batch.schema';
+import type {
+  ExtractFeedbackFromNotesInput,
+  ExtractFeedbackFromNotesResult,
+} from './dto/extract-feedback-from-notes.schema';
 import type { ImportNotesInput } from './dto/import-notes.schema';
 import type { MatchSimilarRequestsInput } from './dto/match-similar-requests.schema';
 import type { QueryReviewQueueInput } from './dto/query-review-queue.schema';
@@ -364,6 +368,80 @@ export class AiProcessingService {
     };
   }
 
+  /**
+   * Dry-run extraction: returns proposed feedback candidates from raw text
+   * WITHOUT creating any records. The caller reviews them and may confirm
+   * creation via the standard POST /feedbacks endpoint.
+   */
+  private readonly FEEDBACK_MIN_CONFIDENCE = 0.5;
+
+  extractFeedbackFromNotes(
+    input: ExtractFeedbackFromNotesInput,
+  ): ExtractFeedbackFromNotesResult {
+    const items = this.extractItems(input.text);
+
+    const candidates = items
+      .filter((item) => item.confidence >= this.FEEDBACK_MIN_CONFIDENCE)
+      .map((item) => ({
+        candidateId: randomUUID(),
+        title: this.buildTitle(item.rawExcerpt),
+        description: item.normalizedText,
+        type: item.type as 'feature-request' | 'bug' | 'pain-point',
+        confidence: item.confidence,
+        suggestedTags: item.suggestedTags,
+      }));
+
+    return {
+      candidates,
+      totalSegments: items.length,
+    };
+  }
+
+  /**
+   * Strips Fireflies-style speaker label prefixes from a line.
+   * Examples removed:
+   *   "[12:10] Torugo (Sales): text" → "text"
+   *   "[00:01:23] Ana: text"         → "text"
+   *   "Speaker Name (Role): text"    → "text"
+   */
+  private stripSpeakerLabel(line: string): string {
+    return (
+      line
+        // [HH:MM] or [HH:MM:SS] followed by optional "Name (Role):" or "Name:"
+        .replace(/^\[[\d:]+\]\s*[^:\n]{0,60}?\s*:\s*/, '')
+        // Bare "Name (Role):" or "Name:" at start (up to 40 chars before colon)
+        .replace(
+          /^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s.]{0,38}(\s*\([^)]{1,25}\))?\s*:\s+/,
+          '',
+        )
+        .trim()
+    );
+  }
+
+  /**
+   * Returns true for lines that are pure metadata with no feedback content.
+   * Examples: bare timestamps, empty speaker turns, lone greetings.
+   */
+  private isNoiseLine(segment: string): boolean {
+    // Pure timestamp
+    if (/^\[[\d:]+\]\s*$/.test(segment)) return true;
+    // Only a name/role with no sentence content
+    if (
+      /^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s.]{0,38}(\s*\([^)]{1,25}\))?\s*:?\s*$/.test(
+        segment,
+      )
+    )
+      return true;
+    // Filler utterances: "Okay", "Sure", "Yeah", "Got it", "Alright", etc.
+    if (
+      /^(ok(ay)?|sure|yeah|yes|no|alright|got\s+it|right|hmm+|uh+|mm+|thanks?|thank\s+you)\.?$/i.test(
+        segment,
+      )
+    )
+      return true;
+    return false;
+  }
+
   async listReviewQueue(
     query: QueryReviewQueueInput,
     organizationId: string,
@@ -575,9 +653,11 @@ export class AiProcessingService {
     const normalizedText = rawText.replace(/\r\n/g, '\n').trim();
     const rawSegments = normalizedText
       .split(/\n+|[•\-*]\s+/g)
+      .map((line) => this.stripSpeakerLabel(line.trim()))
       .flatMap((segment) => segment.split(/(?<=[.!?])\s+/g))
       .map((segment) => segment.trim())
-      .filter((segment) => segment.length >= 10);
+      .filter((segment) => segment.length >= 10)
+      .filter((segment) => !this.isNoiseLine(segment));
 
     const uniqueSegments = Array.from(new Set(rawSegments));
 

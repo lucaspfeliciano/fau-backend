@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
-import { APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AiProcessingModule } from './ai-processing/ai-processing.module';
@@ -33,6 +34,13 @@ import { SprintsModule } from './sprints/sprints.module';
 
 @Module({
   imports: [
+    ThrottlerModule.forRoot({
+      throttlers: [
+        { name: 'short', ttl: 1000, limit: 20 },
+        { name: 'medium', ttl: 10000, limit: 100 },
+        { name: 'long', ttl: 60000, limit: 300 },
+      ],
+    }),
     DatabaseModule.register(),
     LoggingModule,
     DomainEventsModule,
@@ -64,6 +72,10 @@ import { SprintsModule } from './sprints/sprints.module';
   controllers: [AppController],
   providers: [
     AppService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
     {
       provide: APP_INTERCEPTOR,
       useClass: LoggingInterceptor,

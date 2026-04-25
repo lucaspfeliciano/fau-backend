@@ -25,7 +25,7 @@ const toPositiveInt = (defaultValue: number, max?: number) =>
 
 export const QueryRoadmapItemsSchema = z.object({
   page: toPositiveInt(1),
-  pageSize: toPositiveInt(20, 100),
+  pageSize: toPositiveInt(20, 500),
   search: z.string().trim().min(1).max(120).optional(),
   status: z.string().trim().min(1).max(40).optional(),
   owner: z.string().trim().min(1).max(120).optional(),

@@ -67,9 +67,20 @@ export class RequestsController {
     @Body(new ValidationPipe({ whitelist: true, transform: true }))
     body: CreateRequestDto,
   ) {
-    return {
-      request: await this.requestsService.createCanonical(body, user),
-    };
+    const request = await this.requestsService.createCanonical(body, user);
+
+    const similarResult = await this.requestsService
+      .findSimilarRequests(user.organizationId, {
+        title: request.title,
+        details: request.description,
+      })
+      .catch(() => ({ items: [] as typeof similar }));
+
+    const similar = similarResult.items
+      .filter((s) => s.requestId !== request.id)
+      .slice(0, 5);
+
+    return { request, similar };
   }
 
   @Post('promote-feedback/:feedbackId')
@@ -99,13 +110,11 @@ export class RequestsController {
     @Body(new ValidationPipe({ whitelist: true, transform: true }))
     body: PromoteFeedbackToRequestDto,
   ) {
-    return {
-      request: await this.requestsService.promoteFeedbackToRequest(
-        feedbackId,
-        body,
-        user,
-      ),
-    };
+    return this.requestsService.promoteFeedbackToRequest(
+      feedbackId,
+      body,
+      user,
+    );
   }
 
   @Get()
@@ -129,9 +138,7 @@ export class RequestsController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
   ) {
-    return {
-      request: await this.requestsService.findOneById(id, user.organizationId),
-    };
+    return this.requestsService.findOneWithMeta(id, user.organizationId);
   }
 
   @Patch(':id')
@@ -157,9 +164,7 @@ export class RequestsController {
     @Body(new ValidationPipe({ whitelist: true, transform: true }))
     body: UpdateRequestDto,
   ) {
-    return {
-      request: await this.requestsService.update(id, body, user),
-    };
+    return this.requestsService.update(id, body, user);
   }
 
   @Post(':id/customers/:customerId')
@@ -175,9 +180,7 @@ export class RequestsController {
     @Param('id') id: string,
     @Param('customerId') customerId: string,
   ) {
-    return {
-      request: await this.requestsService.linkCustomer(id, customerId, user),
-    };
+    return this.requestsService.linkCustomer(id, customerId, user);
   }
 
   @Delete(':id/customers/:customerId')
@@ -193,8 +196,6 @@ export class RequestsController {
     @Param('id') id: string,
     @Param('customerId') customerId: string,
   ) {
-    return {
-      request: await this.requestsService.unlinkCustomer(id, customerId, user),
-    };
+    return this.requestsService.unlinkCustomer(id, customerId, user);
   }
 }

@@ -81,9 +81,7 @@ export class ProductController {
     @Body(new ZodValidationPipe(CreateInitiativeSchema))
     body: CreateInitiativeInput,
   ) {
-    return {
-      initiative: await this.productService.createInitiative(body, user),
-    };
+    return this.productService.createInitiative(body, user);
   }
 
   @Get('initiatives')
@@ -143,9 +141,7 @@ export class ProductController {
     @Body(new ZodValidationPipe(UpdateInitiativeSchema))
     body: UpdateInitiativeInput,
   ) {
-    return {
-      initiative: await this.productService.updateInitiative(id, body, user),
-    };
+    return this.productService.updateInitiative(id, body, user);
   }
 
   @Post('features')
@@ -169,9 +165,7 @@ export class ProductController {
     @CurrentUser() user: AuthenticatedUser,
     @Body(new ZodValidationPipe(CreateFeatureSchema)) body: CreateFeatureInput,
   ) {
-    return {
-      feature: await this.productService.createFeature(body, user),
-    };
+    return this.productService.createFeature(body, user);
   }
 
   @Get('features')
@@ -217,9 +211,7 @@ export class ProductController {
     @Param('id') id: string,
     @Body(new ZodValidationPipe(UpdateFeatureSchema)) body: UpdateFeatureInput,
   ) {
-    return {
-      feature: await this.productService.updateFeature(id, body, user),
-    };
+    return this.productService.updateFeature(id, body, user);
   }
 
   @Post('features/:id/requests/:requestId')
@@ -235,13 +227,7 @@ export class ProductController {
     @Param('id') id: string,
     @Param('requestId') requestId: string,
   ) {
-    return {
-      feature: await this.productService.linkRequestToFeature(
-        id,
-        requestId,
-        user,
-      ),
-    };
+    return this.productService.linkRequestToFeature(id, requestId, user);
   }
 
   @Delete('features/:id/requests/:requestId')
@@ -257,13 +243,7 @@ export class ProductController {
     @Param('id') id: string,
     @Param('requestId') requestId: string,
   ) {
-    return {
-      feature: await this.productService.unlinkRequestFromFeature(
-        id,
-        requestId,
-        user,
-      ),
-    };
+    return this.productService.unlinkRequestFromFeature(id, requestId, user);
   }
 
   @Get('features/:id/traceability')

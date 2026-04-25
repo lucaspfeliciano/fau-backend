@@ -9,6 +9,7 @@ export interface PlaygroundHypothesisEntity {
   status: PlaygroundHypothesisStatus;
   confidence: number;
   evidenceAssetIds: string[];
+  metadata?: Record<string, unknown>;
   createdBy: string;
   createdAt: string;
   updatedAt: string;

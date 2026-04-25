@@ -27,4 +27,37 @@ export class MongoRequestCommentsRepository implements RequestCommentsRepository
       .lean<RequestCommentEntity[]>()
       .exec();
   }
+
+  async countByRequestIds(
+    requestIds: string[],
+    organizationId: string,
+  ): Promise<Map<string, number>> {
+    if (requestIds.length === 0) {
+      return new Map();
+    }
+
+    const results = await this.requestCommentModel
+      .aggregate([
+        {
+          $match: {
+            requestId: { $in: requestIds },
+            organizationId,
+          },
+        },
+        {
+          $group: {
+            _id: '$requestId',
+            count: { $sum: 1 },
+          },
+        },
+      ])
+      .exec();
+
+    const map = new Map<string, number>();
+    for (const result of results) {
+      map.set(result._id, result.count);
+    }
+
+    return map;
+  }
 }

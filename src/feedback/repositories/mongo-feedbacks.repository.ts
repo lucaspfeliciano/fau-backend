@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import type { FeedbackEntity } from '../entities/feedback.entity';
+import type {
+  FeedbackComment,
+  FeedbackEntity,
+} from '../entities/feedback.entity';
 import type { FeedbacksRepository } from './feedbacks-repository.interface';
 import { FeedbackModel } from './feedback.schema';
 
@@ -33,6 +36,8 @@ export class MongoFeedbacksRepository implements FeedbacksRepository {
       source?: string;
       customerId?: string;
       search?: string;
+      status?: string;
+      sortBy?: 'recent' | 'votes';
     },
   ): Promise<{ items: FeedbackEntity[]; total: number }> {
     const filter: Record<string, unknown> = {
@@ -47,6 +52,10 @@ export class MongoFeedbacksRepository implements FeedbacksRepository {
       filter.customerId = options.customerId;
     }
 
+    if (options.status) {
+      filter.status = options.status;
+    }
+
     if (options.search) {
       const escaped = this.escapeRegex(options.search);
       const searchRegex = {
@@ -57,9 +66,13 @@ export class MongoFeedbacksRepository implements FeedbacksRepository {
     }
 
     const total = await this.feedbackModel.countDocuments(filter).exec();
+    const sortStage: Record<string, 1 | -1> =
+      options.sortBy === 'votes'
+        ? { votes: -1, createdAt: -1 }
+        : { createdAt: -1 };
     const items = await this.feedbackModel
       .find(filter)
-      .sort({ createdAt: -1 })
+      .sort(sortStage)
       .skip((options.page - 1) * options.limit)
       .limit(options.limit)
       .select({ _id: 0 })
@@ -93,11 +106,34 @@ export class MongoFeedbacksRepository implements FeedbacksRepository {
   async incrementVotes(
     feedbackId: string,
     workspaceId: string,
+    fingerprint?: string,
+  ): Promise<FeedbackEntity> {
+    const update: Record<string, unknown> = { $inc: { votes: 1 } };
+    if (fingerprint) {
+      update.$addToSet = { voterIds: fingerprint };
+    }
+    const updated = await this.feedbackModel
+      .findOneAndUpdate({ id: feedbackId, workspaceId }, update, { new: true })
+      .select({ _id: 0 })
+      .lean<FeedbackEntity>()
+      .exec();
+
+    if (!updated) {
+      throw new Error('Feedback not found for vote increment.');
+    }
+
+    return updated;
+  }
+
+  async addComment(
+    feedbackId: string,
+    workspaceId: string,
+    comment: FeedbackComment,
   ): Promise<FeedbackEntity> {
     const updated = await this.feedbackModel
       .findOneAndUpdate(
         { id: feedbackId, workspaceId },
-        { $inc: { votes: 1 } },
+        { $push: { comments: comment } },
         { new: true },
       )
       .select({ _id: 0 })
@@ -105,7 +141,7 @@ export class MongoFeedbacksRepository implements FeedbacksRepository {
       .exec();
 
     if (!updated) {
-      throw new Error('Feedback not found for vote increment.');
+      throw new Error('Feedback not found for comment insertion.');
     }
 
     return updated;

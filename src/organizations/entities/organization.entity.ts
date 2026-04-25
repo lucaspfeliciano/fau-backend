@@ -3,6 +3,9 @@ export interface OrganizationEntity {
   name: string;
   slug: string;
   widgetApiKey?: string;
+  widgetEnabled: boolean;
+  logoUrl?: string;
+  subtitle?: string;
   publicPortalEnabled: boolean;
   publicRoadmapEnabled: boolean;
   publicChangelogEnabled: boolean;

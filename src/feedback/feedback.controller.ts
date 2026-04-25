@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiOkResponse,
@@ -44,9 +45,34 @@ export class FeedbackController {
     @Body(new ValidationPipe({ whitelist: true, transform: true }))
     body: CreateFeedbackDto,
   ) {
-    return {
-      feedback: await this.feedbackService.create(body, user),
-    };
+    return this.feedbackService.create(body, user);
+  }
+
+  @Post('bulk')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Bulk create feedbacks (e.g. from imported notes)' })
+  @ApiBody({
+    schema: {
+      example: {
+        items: [
+          {
+            title: 'Erro ao exportar',
+            description: 'Usuário relatou travamento ao tentar exportar dados.',
+            source: 'fireflies',
+          },
+        ],
+      },
+    },
+  })
+  @ApiCreatedResponse({ description: 'Feedbacks created successfully.' })
+  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async bulkCreate(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    body: { items: CreateFeedbackDto[] },
+  ) {
+    return this.feedbackService.bulkCreate(body.items, user);
   }
 
   @Get()

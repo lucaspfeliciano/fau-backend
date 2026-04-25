@@ -70,9 +70,7 @@ export class BoardsController {
     @CurrentUser() user: AuthenticatedUser,
     @Body(new ZodValidationPipe(CreateBoardSchema)) body: CreateBoardInput,
   ) {
-    return {
-      board: await this.boardsService.create(body, user),
-    };
+    return this.boardsService.create(body, user);
   }
 
   @Patch(':id')
@@ -94,8 +92,6 @@ export class BoardsController {
     @Param('id') id: string,
     @Body(new ZodValidationPipe(UpdateBoardSchema)) body: UpdateBoardInput,
   ) {
-    return {
-      board: await this.boardsService.update(id, body, user),
-    };
+    return this.boardsService.update(id, body, user);
   }
 }

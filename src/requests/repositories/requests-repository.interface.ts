@@ -17,6 +17,8 @@ export interface RequestsRepository {
       boardId?: string;
       tag?: string;
       search?: string;
+      sortBy?: string;
+      sortOrder?: 'asc' | 'desc';
     },
   ) => Promise<{ items: RequestEntity[]; total: number }>;
   findById(

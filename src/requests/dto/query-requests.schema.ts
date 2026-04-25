@@ -33,13 +33,19 @@ const toBoolean = z.preprocess((value) => {
 
 export const QueryRequestsSchema = z.object({
   page: toPositiveInt(1),
-  limit: toPositiveInt(20, 100),
+  limit: toPositiveInt(20, 200),
+  /** Alias for limit — sent by the frontend as pageSize */
+  pageSize: toPositiveInt(20, 200).optional(),
   boardId: z.string().trim().min(1).max(120).optional(),
   status: z.nativeEnum(RequestStatus).optional(),
   customerId: z.string().trim().min(1).max(120).optional(),
   tag: z.string().trim().min(1).max(30).optional(),
   search: z.string().trim().min(1).max(120).optional(),
   includeArchived: toBoolean,
+  sortBy: z
+    .enum(['updatedAt', 'votes', 'title', 'createdAt'])
+    .optional(),
+  sortOrder: z.enum(['asc', 'desc']).optional(),
 });
 
 export type QueryRequestsInput = z.infer<typeof QueryRequestsSchema>;

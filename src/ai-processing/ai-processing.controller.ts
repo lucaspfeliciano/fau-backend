@@ -30,6 +30,10 @@ import {
   type ApproveReviewQueueBatchInput,
 } from './dto/approve-review-queue-batch.schema';
 import {
+  ExtractFeedbackFromNotesSchema,
+  type ExtractFeedbackFromNotesInput,
+} from './dto/extract-feedback-from-notes.schema';
+import {
   ImportNotesSchema,
   type ImportNotesInput,
 } from './dto/import-notes.schema';
@@ -73,6 +77,32 @@ export class AiProcessingController {
     @Body(new ZodValidationPipe(ImportNotesSchema)) body: ImportNotesInput,
   ) {
     return this.aiProcessingService.importNotes(body, user);
+  }
+
+  @Post('feedback/extract-from-notes')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({
+    summary:
+      'Dry-run: extract feedback candidates from notes without creating records',
+  })
+  @ApiBody({
+    schema: {
+      example: {
+        text: 'Cliente relatou travamento ao exportar. Pediu dashboard por squad. Filtro de data não funciona.',
+        sourceType: 'meeting-notes',
+      },
+    },
+  })
+  @ApiCreatedResponse({
+    description: 'Returns proposed feedback candidates for user review.',
+  })
+  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  extractFeedbackFromNotes(
+    @Body(new ZodValidationPipe(ExtractFeedbackFromNotesSchema))
+    body: ExtractFeedbackFromNotesInput,
+  ) {
+    return this.aiProcessingService.extractFeedbackFromNotes(body);
   }
 
   @Post('requests/match-similar')

@@ -30,6 +30,9 @@ export class PlaygroundHypothesisModel {
   @Prop({ type: [String], default: [] })
   evidenceAssetIds!: string[];
 
+  @Prop({ type: Object })
+  metadata?: Record<string, unknown>;
+
   @Prop({ type: String, required: true })
   createdBy!: string;
 

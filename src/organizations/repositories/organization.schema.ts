@@ -18,6 +18,15 @@ export class OrganizationModel {
   widgetApiKey?: string;
 
   @Prop({ type: Boolean, required: true, default: false })
+  widgetEnabled!: boolean;
+
+  @Prop({ type: String })
+  logoUrl?: string;
+
+  @Prop({ type: String })
+  subtitle?: string;
+
+  @Prop({ type: Boolean, required: true, default: false })
   publicPortalEnabled!: boolean;
 
   @Prop({ type: Boolean, required: true, default: false })

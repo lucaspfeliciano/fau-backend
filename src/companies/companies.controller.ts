@@ -65,9 +65,7 @@ export class CompaniesController {
     @CurrentUser() user: AuthenticatedUser,
     @Body(new ZodValidationPipe(CreateCompanySchema)) body: CreateCompanyInput,
   ) {
-    return {
-      company: await this.companiesService.create(body, user),
-    };
+    return this.companiesService.create(body, user);
   }
 
   @Get()
@@ -91,9 +89,7 @@ export class CompaniesController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
   ) {
-    return {
-      company: await this.companiesService.findOneById(id, user.organizationId),
-    };
+    return this.companiesService.findOneById(id, user.organizationId);
   }
 
   @Patch(':id')
@@ -116,8 +112,6 @@ export class CompaniesController {
     @Param('id') id: string,
     @Body(new ZodValidationPipe(UpdateCompanySchema)) body: UpdateCompanyInput,
   ) {
-    return {
-      company: await this.companiesService.update(id, body, user),
-    };
+    return this.companiesService.update(id, body, user);
   }
 }

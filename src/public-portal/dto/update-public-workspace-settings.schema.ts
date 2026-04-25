@@ -2,6 +2,9 @@ import { z } from 'zod';
 
 export const UpdatePublicWorkspaceSettingsSchema = z
   .object({
+    logoUrl: z.string().optional().nullable(),
+    subtitle: z.string().max(200).optional().nullable(),
+    widgetEnabled: z.boolean().optional(),
     rotateWidgetApiKey: z.boolean().optional(),
     publicPortalEnabled: z.boolean().optional(),
     publicRoadmapEnabled: z.boolean().optional(),

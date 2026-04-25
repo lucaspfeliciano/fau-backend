@@ -36,7 +36,9 @@ export class IsValidTextNodeConstraint implements ValidatorConstraintInterface {
  * Valida que shape nodes tenham metadata válida
  */
 @ValidatorConstraint({ name: 'isValidShapeNode', async: false })
-export class IsValidShapeNodeConstraint validate(value: unknown, args: Validati     const object = args.object as {
+export class IsValidShapeNodeConstraint implements ValidatorConstraintInterface {
+  validate(value: unknown, args: ValidationArguments): boolean {
+    const object = args.object as {
       type?: string;
       metadata?: Record<string, unknown>;
     };
@@ -54,21 +56,49 @@ export class IsValidShapeNodeConstraint validate(value: unknown, args: Validati 
     const metadata = value as Record<string, unknown>;
 
     // Validar shapeType
-    if (
-      !metadata.shapeType ||
-      !['rectangle', 'circle'].includes(String(metadata.shapeType))
-    ) {
+    const shapeType =
+      typeof metadata.shapeType === 'string' ? metadata.shapeType : '';
+    if (!['rectangle', 'circle', 'path'].includes(shapeType)) {
       return false;
     }
 
+    // Formas de traço livre (path): requerem pathData, não fillColor
+    if (shapeType === 'path') {
+      const pathData =
+        typeof metadata.pathData === 'string' ? metadata.pathData : '';
+      if (pathData.trim().length === 0) {
+        return false;
+      }
+
+      const strokeColor =
+        typeof metadata.strokeColor === 'string' ? metadata.strokeColor : '';
+      if (!/^#[0-9A-Fa-f]{6}$/.test(strokeColor)) {
+        return false;
+      }
+
+      const strokeWidth = Number(metadata.strokeWidth);
+      if (
+        !Number.isFinite(strokeWidth) ||
+        strokeWidth < 1 ||
+        strokeWidth > 10
+      ) {
+        return false;
+      }
+
+      return true;
+    }
+
+    // Para rectangle e circle: validação completa com fillColor
     // Validar strokeColor (hex color)
-    const strokeColor = String(metadata.strokeColor || '');
+    const strokeColor =
+      typeof metadata.strokeColor === 'string' ? metadata.strokeColor : '';
     if (!/^#[0-9A-Fa-f]{6}$/.test(strokeColor)) {
       return false;
     }
 
     // Validar fillColor (hex color ou transparent)
-    const fillColor = String(metadata.fillColor || '');
+    const fillColor =
+      typeof metadata.fillColor === 'string' ? metadata.fillColor : '';
     if (!/^(#[0-9A-Fa-f]{6}|transparent)$/.test(fillColor)) {
       return false;
     }
@@ -77,9 +107,13 @@ export class IsValidShapeNodeConstraint validate(value: unknown, args: Validati 
     const strokeWidth = Number(metadata.strokeWidth);
     if (!Number.isFinite(strokeWidth) || strokeWidth < 1 || strokeWidth > 10) {
       return false;
-    } turn true;
+    }
+
+    return true;
+  }
+
   defaultMessage(): string {
-    return 'Shape nodes must have valid metadata (shapeType: "rectangle"|"circle", strokeColor: hex, fillColor: hex|transparent, strokeWidth: 1-10)';
+    return 'Shape nodes must have valid metadata: path shapes require (shapeType: "path", pathData: string, strokeColor: hex, strokeWidth: 1-10); rectangle/circle shapes require (shapeType: "rectangle"|"circle", strokeColor: hex, fillColor: hex|transparent, strokeWidth: 1-10)';
   }
 }
 

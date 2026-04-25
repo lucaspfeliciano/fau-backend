@@ -8,7 +8,10 @@ import { randomUUID } from 'crypto';
 import type { AuthenticatedUser } from '../common/auth/authenticated-user.interface';
 import type { QueryFeedbackDto } from './dto/query-feedback.dto';
 import type { CreateFeedbackDto } from './dto/create-feedback.dto';
-import type { FeedbackEntity } from './entities/feedback.entity';
+import type {
+  FeedbackComment,
+  FeedbackEntity,
+} from './entities/feedback.entity';
 import {
   FEEDBACKS_REPOSITORY,
   type FeedbacksRepository,
@@ -42,11 +45,30 @@ export class FeedbackService {
       publicSubmitterName: input.publicSubmitterName?.trim(),
       publicSubmitterEmail: input.publicSubmitterEmail?.trim().toLowerCase(),
       customerId: input.customerId?.trim(),
+      votes: 0,
+      voterIds: [],
       createdAt: new Date().toISOString(),
     };
 
     await this.feedbacksRepository.insert(feedback);
     return feedback;
+  }
+
+  async bulkCreate(
+    inputs: CreateFeedbackDto[],
+    actor: AuthenticatedUser,
+  ): Promise<{ items: FeedbackEntity[]; created: number }> {
+    const MAX_BULK = 50;
+    const batch = inputs.slice(0, MAX_BULK);
+
+    const items: FeedbackEntity[] = [];
+
+    for (const input of batch) {
+      const created = await this.create(input, actor);
+      items.push(created);
+    }
+
+    return { items, created: items.length };
   }
 
   async list(
@@ -65,6 +87,7 @@ export class FeedbackService {
           source: query.source,
           customerId: query.customerId,
           search: query.search,
+          sortBy: query.sortBy,
         },
       );
 
@@ -105,7 +128,13 @@ export class FeedbackService {
           item.description.toLowerCase().includes(search)
         );
       })
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      .sort((a, b) => {
+        if (query.sortBy === 'votes') {
+          const voteDiff = (b.votes ?? 0) - (a.votes ?? 0);
+          if (voteDiff !== 0) return voteDiff;
+        }
+        return b.createdAt.localeCompare(a.createdAt);
+      });
 
     const total = filtered.length;
     const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
@@ -157,8 +186,103 @@ export class FeedbackService {
   async voteFromPublicPortal(
     feedbackId: string,
     workspaceId: string,
+    fingerprint?: string,
   ): Promise<FeedbackEntity> {
-    return this.feedbacksRepository.incrementVotes(feedbackId, workspaceId);
+    return this.feedbacksRepository.incrementVotes(
+      feedbackId,
+      workspaceId,
+      fingerprint,
+    );
+  }
+
+  async addPublicComment(
+    feedbackId: string,
+    workspaceId: string,
+    input: { text: string; name?: string },
+  ): Promise<FeedbackComment> {
+    const feedback = await this.findOneById(feedbackId, workspaceId);
+    const comment: FeedbackComment = {
+      id: randomUUID(),
+      feedbackId: feedback.id,
+      text: input.text.trim(),
+      name: input.name?.trim(),
+      createdAt: new Date().toISOString(),
+    };
+    await this.feedbacksRepository.addComment(feedbackId, workspaceId, comment);
+    return comment;
+  }
+
+  async findSimilar(
+    workspaceId: string,
+    input: { title: string; details?: string },
+  ): Promise<{
+    items: {
+      feedbackId: string;
+      title: string;
+      description: string;
+      votes: number;
+      similarityScore: number;
+    }[];
+  }> {
+    const normalized = `${input.title} ${input.details ?? ''}`
+      .trim()
+      .toLowerCase();
+    if (!normalized) {
+      return { items: [] };
+    }
+
+    const all = await this.feedbacksRepository.listByWorkspace(workspaceId);
+    const threshold = 0.2;
+    const maxItems = 8;
+
+    const results = all
+      .map((feedback) => ({
+        feedback,
+        score: this.calculateTextSimilarity(
+          normalized,
+          `${feedback.title} ${feedback.description}`,
+        ),
+      }))
+      .filter((item) => item.score >= threshold)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, maxItems);
+
+    return {
+      items: results.map((item) => ({
+        feedbackId: item.feedback.id,
+        title: item.feedback.title,
+        description: item.feedback.description,
+        votes: item.feedback.votes,
+        similarityScore: Number(item.score.toFixed(4)),
+      })),
+    };
+  }
+
+  private calculateTextSimilarity(a: string, b: string): number {
+    const normalize = (value: string) =>
+      value
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/gi, ' ')
+        .split(/\s+/)
+        .map((token) => token.trim())
+        .filter((token) => token.length >= 3);
+
+    const tokensA = new Set(normalize(a));
+    const tokensB = new Set(normalize(b));
+
+    if (tokensA.size === 0 || tokensB.size === 0) {
+      return 0;
+    }
+
+    let intersection = 0;
+    for (const token of tokensA) {
+      if (tokensB.has(token)) {
+        intersection += 1;
+      }
+    }
+
+    const unionSize = new Set([...tokensA, ...tokensB]).size;
+    return unionSize === 0 ? 0 : intersection / unionSize;
   }
 
   private uniqueValues(values: string[] | undefined): string[] {

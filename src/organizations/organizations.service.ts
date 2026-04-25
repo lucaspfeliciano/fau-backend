@@ -34,6 +34,7 @@ export class OrganizationsService {
       name: normalizedName,
       slug,
       widgetApiKey: this.generateWidgetApiKey(),
+      widgetEnabled: false,
       publicPortalEnabled: false,
       publicRoadmapEnabled: false,
       publicChangelogEnabled: false,
@@ -145,6 +146,9 @@ export class OrganizationsService {
   async updatePublicSettingsBySlug(
     slug: string,
     input: {
+      logoUrl?: string | null;
+      subtitle?: string | null;
+      widgetEnabled?: boolean;
       rotateWidgetApiKey?: boolean;
       publicPortalEnabled?: boolean;
       publicRoadmapEnabled?: boolean;
@@ -155,6 +159,18 @@ export class OrganizationsService {
 
     if (!organization) {
       return undefined;
+    }
+
+    if (input.logoUrl !== undefined) {
+      organization.logoUrl = input.logoUrl || undefined;
+    }
+
+    if (input.subtitle !== undefined) {
+      organization.subtitle = input.subtitle || undefined;
+    }
+
+    if (input.widgetEnabled !== undefined) {
+      organization.widgetEnabled = input.widgetEnabled;
     }
 
     if (input.publicPortalEnabled !== undefined) {

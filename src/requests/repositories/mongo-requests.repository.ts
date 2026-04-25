@@ -81,6 +81,8 @@ export class MongoRequestsRepository implements RequestsRepository {
       boardId?: string;
       tag?: string;
       search?: string;
+      sortBy?: string;
+      sortOrder?: 'asc' | 'desc';
     },
   ): Promise<{ items: RequestEntity[]; total: number }> {
     const filter: Record<string, unknown> = {
@@ -133,7 +135,7 @@ export class MongoRequestsRepository implements RequestsRepository {
     const total = await this.requestModel.countDocuments(filter).exec();
     const docs = await this.requestModel
       .find(filter)
-      .sort({ updatedAt: -1 })
+      .sort({ [options.sortBy ?? 'updatedAt']: options.sortOrder === 'asc' ? 1 : -1 })
       .skip((options.page - 1) * options.limit)
       .limit(options.limit)
       .lean<RequestEntity[]>()

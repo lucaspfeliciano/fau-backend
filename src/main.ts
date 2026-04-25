@@ -1,14 +1,35 @@
 import 'dotenv/config';
 import * as fs from 'fs';
+import * as path from 'path';
 
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import helmet from 'helmet';
 
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/errors/global-exception.filter';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Security: HTTP headers (OWASP)
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
+
+  // Performance: GZIP compression
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  app.use(require('compression')());
+
+  // Serve uploaded playground assets as static files
+  const uploadsRoot = path.resolve(process.cwd(), 'uploads');
+  if (!fs.existsSync(uploadsRoot)) {
+    fs.mkdirSync(uploadsRoot, { recursive: true });
+  }
+  app.useStaticAssets(uploadsRoot, { prefix: '/uploads' });
 
   const allowedOrigins = process.env.CORS_ORIGIN?.split(',')
     .map((origin) => origin.trim())

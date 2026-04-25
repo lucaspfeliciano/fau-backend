@@ -59,6 +59,10 @@ export interface RequestUpdatesResult {
 export interface SimilarRequestItem {
   requestId: string;
   title: string;
+  description: string;
+  status: string;
+  votes: number;
+  commentCount: number;
   similarityScore: number;
   actionSuggested: 'link_existing' | 'review';
 }
@@ -485,8 +489,10 @@ export class RequestsService {
     organizationId: string,
   ): Promise<PaginatedRequestsResult> {
     const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
+    const limit = query.limit ?? (query as any).pageSize ?? 20;
     const includeArchived = query.includeArchived ?? false;
+    const sortBy = (query as any).sortBy ?? 'updatedAt';
+    const sortOrder: 'asc' | 'desc' = (query as any).sortOrder ?? 'desc';
 
     if (this.requestsRepository.queryByOrganization) {
       const result = await this.requestsRepository.queryByOrganization(
@@ -500,6 +506,8 @@ export class RequestsService {
           boardId: query.boardId,
           tag: query.tag,
           search: query.search,
+          sortBy,
+          sortOrder,
         },
       );
 
@@ -572,7 +580,19 @@ export class RequestsService {
           )
         );
       })
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+      .sort((a, b) => {
+        let cmp = 0;
+        if (sortBy === 'votes') {
+          cmp = (a.votes ?? 0) - (b.votes ?? 0);
+        } else if (sortBy === 'title') {
+          cmp = a.title.localeCompare(b.title);
+        } else if (sortBy === 'createdAt') {
+          cmp = (a.createdAt ?? '').localeCompare(b.createdAt ?? '');
+        } else {
+          cmp = (a.updatedAt ?? '').localeCompare(b.updatedAt ?? '');
+        }
+        return sortOrder === 'asc' ? cmp : -cmp;
+      });
 
     const total = filtered.length;
     const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
@@ -592,6 +612,24 @@ export class RequestsService {
     organizationId: string,
   ): Promise<RequestEntity> {
     return this.findById(requestId, organizationId, false);
+  }
+
+  async findOneWithMeta(
+    requestId: string,
+    organizationId: string,
+  ): Promise<RequestEntity & { commentCount: number }> {
+    const request = await this.findById(requestId, organizationId, false);
+    let commentCount = 0;
+
+    if (this.requestCommentsRepository) {
+      const counts = await this.requestCommentsRepository.countByRequestIds(
+        [requestId],
+        organizationId,
+      );
+      commentCount = counts.get(requestId) ?? 0;
+    }
+
+    return { ...request, commentCount };
   }
 
   async update(
@@ -771,10 +809,23 @@ export class RequestsService {
       .sort((a, b) => b.score - a.score)
       .slice(0, maxItems);
 
+    // Buscar contagem de comentários para todos os candidatos de uma vez
+    const requestIds = candidates.map((item) => item.request.id);
+    const commentCounts = this.requestCommentsRepository
+      ? await this.requestCommentsRepository.countByRequestIds(
+          requestIds,
+          organizationId,
+        )
+      : new Map<string, number>();
+
     return {
       items: candidates.map((item) => ({
         requestId: item.request.id,
         title: item.request.title,
+        description: item.request.description || '',
+        status: item.request.status,
+        votes: item.request.votes || 0,
+        commentCount: commentCounts.get(item.request.id) || 0,
         similarityScore: Number(item.score.toFixed(4)),
         actionSuggested: item.score >= 0.55 ? 'link_existing' : 'review',
       })),

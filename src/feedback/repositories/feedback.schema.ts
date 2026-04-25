@@ -30,7 +30,33 @@ export class FeedbackModel {
   customerId?: string;
 
   @Prop({ type: Number, default: 0 })
-  votes?: number;
+  votes!: number;
+
+  @Prop({ type: [String], default: [] })
+  voterIds!: string[];
+
+  @Prop({ type: String, index: true })
+  status?: string;
+
+  @Prop({
+    type: [
+      {
+        id: { type: String, required: true },
+        feedbackId: { type: String, required: true },
+        text: { type: String, required: true },
+        name: { type: String },
+        createdAt: { type: String, required: true },
+      },
+    ],
+    default: [],
+  })
+  comments!: {
+    id: string;
+    feedbackId: string;
+    text: string;
+    name?: string;
+    createdAt: string;
+  }[];
 
   @Prop({ type: String, required: true, index: true })
   createdAt!: string;

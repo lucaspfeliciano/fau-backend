@@ -26,6 +26,8 @@ import type { UpdatePlaygroundInsightDto } from './dto/update-playground-insight
 import type { UpdateLegacyPlaygroundNodeDto } from './dto/update-legacy-playground-node.dto';
 import type { UpdatePlaygroundWorkspaceDto } from './dto/update-playground-workspace.dto';
 import type { UploadPlaygroundAssetDto } from './dto/upload-playground-asset.dto';
+import type { CreateLegacyBoardCardDto } from './dto/create-legacy-board-card.dto';
+import type { UpdateLegacyBoardCardDto } from './dto/update-legacy-board-card.dto';
 import type { PlaygroundAssetEntity } from './entities/playground-asset.entity';
 import { PlaygroundHypothesisStatus } from './entities/playground-hypothesis-status.enum';
 import type { PlaygroundHypothesisEntity } from './entities/playground-hypothesis.entity';
@@ -116,8 +118,16 @@ export interface LegacyPlaygroundBoardCard {
   id: string;
   title: string;
   description?: string;
+  summary?: string;
+  column: string;
   status: string;
   confidence: number;
+  sourceNodeId?: string;
+  sourceNodeType?: string;
+  convertedRequestId?: string;
+  convertedRequestTitle?: string;
+  convertedAt?: string;
+  metadata?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
 }
@@ -803,19 +813,177 @@ export class PlaygroundService {
     );
 
     return {
-      items: result.items.map((item) => ({
-        id: item.id,
-        title: item.statement,
-        description: item.description,
-        status: item.status,
-        confidence: item.confidence,
-        createdAt: item.createdAt,
-        updatedAt: item.updatedAt,
-      })),
+      items: result.items.map((item) => this.toLegacyBoardCard(item)),
       page: result.page,
       limit: result.limit,
       total: result.total,
       totalPages: result.totalPages,
+    };
+  }
+
+  async createLegacyBoardCard(
+    playgroundWorkspaceId: string,
+    input: CreateLegacyBoardCardDto,
+    actor: AuthenticatedUser,
+  ): Promise<LegacyPlaygroundBoardCard> {
+    const workspace = await this.findWorkspaceById(
+      playgroundWorkspaceId,
+      actor.organizationId,
+    );
+
+    const column = input.column ?? 'could_have';
+    const now = new Date().toISOString();
+
+    const hypothesis: PlaygroundHypothesisEntity = {
+      id: randomUUID(),
+      playgroundWorkspaceId: workspace.id,
+      workspaceId: actor.organizationId,
+      statement: input.title.trim(),
+      description: input.summary?.trim() || undefined,
+      status: this.columnToHypothesisStatus(column),
+      confidence: 50,
+      evidenceAssetIds: [],
+      metadata: {
+        ...(input.metadata ?? {}),
+        column,
+        sourceNodeId: input.sourceNodeId,
+        sourceNodeType: input.sourceNodeType,
+      },
+      createdBy: actor.id,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await this.playgroundHypothesesRepository.insert(hypothesis);
+    return this.toLegacyBoardCard(hypothesis);
+  }
+
+  async updateLegacyBoardCard(
+    cardId: string,
+    input: UpdateLegacyBoardCardDto,
+    actor: AuthenticatedUser,
+  ): Promise<LegacyPlaygroundBoardCard> {
+    const hypothesis = await this.findHypothesisById(
+      cardId,
+      actor.organizationId,
+    );
+
+    if (input.title !== undefined) {
+      hypothesis.statement = input.title.trim();
+    }
+
+    if (input.summary !== undefined) {
+      hypothesis.description = input.summary.trim() || undefined;
+    }
+
+    if (input.column !== undefined) {
+      hypothesis.status = this.columnToHypothesisStatus(input.column);
+      hypothesis.metadata = {
+        ...(hypothesis.metadata ?? {}),
+        column: input.column,
+      };
+    }
+
+    if (input.metadata !== undefined) {
+      hypothesis.metadata = {
+        ...(hypothesis.metadata ?? {}),
+        ...input.metadata,
+      };
+    }
+
+    hypothesis.updatedAt = new Date().toISOString();
+    await this.playgroundHypothesesRepository.update(hypothesis);
+    return this.toLegacyBoardCard(hypothesis);
+  }
+
+  async deleteLegacyBoardCard(
+    cardId: string,
+    actor: AuthenticatedUser,
+  ): Promise<void> {
+    await this.findHypothesisById(cardId, actor.organizationId);
+    await this.playgroundHypothesesRepository.delete(
+      cardId,
+      actor.organizationId,
+    );
+  }
+
+  async convertLegacyBoardCardToRequest(
+    playgroundWorkspaceId: string,
+    cardId: string,
+    input: {
+      title?: string;
+      description?: string;
+      tags?: string[];
+      sourceType?: string;
+      boardId?: string;
+      problems?: string[];
+      solutions?: string[];
+      product?: string;
+      functionality?: string;
+      feedbackIds?: string[];
+    },
+    actor: AuthenticatedUser,
+  ): Promise<{
+    requestId: string;
+    requestTitle: string;
+    boardCard: LegacyPlaygroundBoardCard;
+  }> {
+    const hypothesis = await this.findHypothesisById(
+      cardId,
+      actor.organizationId,
+    );
+
+    // Check if already converted
+    const existingRequestId = hypothesis.metadata?.convertedRequestId as
+      | string
+      | undefined;
+    if (existingRequestId) {
+      return {
+        requestId: existingRequestId,
+        requestTitle:
+          (hypothesis.metadata?.convertedRequestTitle as string) ??
+          hypothesis.statement,
+        boardCard: this.toLegacyBoardCard(hypothesis),
+      };
+    }
+
+    const rawDescription =
+      input.description?.trim() ||
+      hypothesis.description ||
+      hypothesis.statement;
+    const safeDescription =
+      rawDescription.length >= 3 ? rawDescription : `${rawDescription}...`;
+
+    const requestInput: CreateRequestInput = {
+      title: input.title?.trim() || hypothesis.statement,
+      description: safeDescription,
+      status: RequestStatus.New,
+      tags: input.tags?.filter((t) => t.trim().length >= 1) ?? ['playground'],
+      product: input.product?.trim() || undefined,
+      functionality: input.functionality?.trim() || undefined,
+      problems: (input.problems ?? []).filter((p) => p.trim().length >= 3),
+      solutions: (input.solutions ?? []).filter((s) => s.trim().length >= 3),
+      sourceType: RequestSourceType.Manual,
+      sourceRef: `playground-board-card:${cardId}`,
+      boardId: input.boardId?.trim() || undefined,
+    };
+
+    const request = await this.requestsService.create(requestInput, actor);
+
+    // Persist conversion reference in metadata
+    hypothesis.metadata = {
+      ...(hypothesis.metadata ?? {}),
+      convertedRequestId: request.id,
+      convertedRequestTitle: request.title,
+      convertedAt: new Date().toISOString(),
+    };
+    hypothesis.updatedAt = new Date().toISOString();
+    await this.playgroundHypothesesRepository.update(hypothesis);
+
+    return {
+      requestId: request.id,
+      requestTitle: request.title,
+      boardCard: this.toLegacyBoardCard(hypothesis),
     };
   }
 
@@ -1207,6 +1375,64 @@ export class PlaygroundService {
       });
 
     await Promise.all(updates);
+  }
+
+  private toLegacyBoardCard(
+    hypothesis: PlaygroundHypothesisEntity,
+  ): LegacyPlaygroundBoardCard {
+    const meta = hypothesis.metadata ?? {};
+    const column =
+      (meta.column as string) ??
+      this.hypothesisStatusToColumn(hypothesis.status);
+
+    return {
+      id: hypothesis.id,
+      title: hypothesis.statement,
+      description: hypothesis.description,
+      summary: hypothesis.description,
+      column,
+      status: hypothesis.status,
+      confidence: hypothesis.confidence,
+      sourceNodeId: (meta.sourceNodeId as string) || undefined,
+      sourceNodeType: (meta.sourceNodeType as string) || undefined,
+      convertedRequestId: (meta.convertedRequestId as string) || undefined,
+      convertedRequestTitle:
+        (meta.convertedRequestTitle as string) || undefined,
+      convertedAt: (meta.convertedAt as string) || undefined,
+      metadata: meta,
+      createdAt: hypothesis.createdAt,
+      updatedAt: hypothesis.updatedAt,
+    };
+  }
+
+  private columnToHypothesisStatus(column: string): PlaygroundHypothesisStatus {
+    switch (column) {
+      case 'must_have':
+        return PlaygroundHypothesisStatus.Validated;
+      case 'could_have':
+        return PlaygroundHypothesisStatus.Validating;
+      case 'nice_to_have':
+        return PlaygroundHypothesisStatus.Open;
+      case 'wont_do':
+        return PlaygroundHypothesisStatus.Invalidated;
+      default:
+        return PlaygroundHypothesisStatus.Open;
+    }
+  }
+
+  private hypothesisStatusToColumn(status: PlaygroundHypothesisStatus): string {
+    switch (status) {
+      case PlaygroundHypothesisStatus.Validated:
+        return 'must_have';
+      case PlaygroundHypothesisStatus.Validating:
+        return 'could_have';
+      case PlaygroundHypothesisStatus.Open:
+        return 'nice_to_have';
+      case PlaygroundHypothesisStatus.Invalidated:
+        return 'wont_do';
+      default:
+        return 'could_have';
+    }
   }
 
   private toLegacyNode(insight: PlaygroundInsightEntity): LegacyPlaygroundNode {

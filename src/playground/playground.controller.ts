@@ -35,6 +35,8 @@ import { CreatePlaygroundHypothesisDto } from './dto/create-playground-hypothesi
 import { CreatePlaygroundInsightDto } from './dto/create-playground-insight.dto';
 import { CreateLegacyPlaygroundNodeDto } from './dto/create-legacy-playground-node.dto';
 import { CreatePlaygroundWorkspaceDto } from './dto/create-playground-workspace.dto';
+import { CreateLegacyBoardCardDto } from './dto/create-legacy-board-card.dto';
+import { UpdateLegacyBoardCardDto } from './dto/update-legacy-board-card.dto';
 import { QueryLegacyPlaygroundNodesDto } from './dto/query-legacy-playground-nodes.dto';
 import { QueryPlaygroundAssetsDto } from './dto/query-playground-assets.dto';
 import { QueryPlaygroundHypothesesDto } from './dto/query-playground-hypotheses.dto';
@@ -80,9 +82,7 @@ export class PlaygroundController {
     @Body(new ValidationPipe({ whitelist: true, transform: true }))
     body: CreatePlaygroundWorkspaceDto,
   ) {
-    return {
-      workspace: await this.playgroundService.createWorkspace(body, user),
-    };
+    return this.playgroundService.createWorkspace(body, user);
   }
 
   @Get('workspaces')
@@ -106,12 +106,7 @@ export class PlaygroundController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
   ) {
-    return {
-      workspace: await this.playgroundService.getWorkspace(
-        id,
-        user.organizationId,
-      ),
-    };
+    return this.playgroundService.getWorkspace(id, user.organizationId);
   }
 
   @Patch('workspaces/:id')
@@ -127,9 +122,7 @@ export class PlaygroundController {
     @Body(new ValidationPipe({ whitelist: true, transform: true }))
     body: UpdatePlaygroundWorkspaceDto,
   ) {
-    return {
-      workspace: await this.playgroundService.updateWorkspace(id, body, user),
-    };
+    return this.playgroundService.updateWorkspace(id, body, user);
   }
 
   @Delete('workspaces/:id')
@@ -183,9 +176,7 @@ export class PlaygroundController {
     body: UploadPlaygroundAssetDto,
     @UploadedFile() file: UploadedPlaygroundFile | undefined,
   ) {
-    return {
-      asset: await this.playgroundService.uploadAsset(id, body, file, user),
-    };
+    return this.playgroundService.uploadAsset(id, body, file, user);
   }
 
   @Get('workspaces/:id/assets')
@@ -233,9 +224,7 @@ export class PlaygroundController {
     @Body(new ValidationPipe({ whitelist: true, transform: true }))
     body: CreateLegacyPlaygroundNodeDto,
   ) {
-    return {
-      node: await this.playgroundService.createLegacyNode(id, body, user),
-    };
+    return this.playgroundService.createLegacyNode(id, body, user);
   }
 
   @Patch('nodes/:nodeId')
@@ -251,9 +240,7 @@ export class PlaygroundController {
     @Body(new ValidationPipe({ whitelist: true, transform: true }))
     body: UpdateLegacyPlaygroundNodeDto,
   ) {
-    return {
-      node: await this.playgroundService.updateLegacyNode(nodeId, body, user),
-    };
+    return this.playgroundService.updateLegacyNode(nodeId, body, user);
   }
 
   @Delete('nodes/:nodeId')
@@ -309,6 +296,175 @@ export class PlaygroundController {
     );
   }
 
+  @Post('workspaces/:id/board-cards')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Create legacy board card in playground workspace' })
+  @ApiParam({ name: 'id', description: 'Playground workspace id' })
+  @ApiCreatedResponse({ description: 'Board card created successfully.' })
+  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async createLegacyBoardCard(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    body: CreateLegacyBoardCardDto,
+  ) {
+    return this.playgroundService.createLegacyBoardCard(id, body, user);
+  }
+
+  @Patch('board-cards/:cardId')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Update legacy board card by id' })
+  @ApiParam({ name: 'cardId', description: 'Board card id' })
+  @ApiOkResponse({ description: 'Board card updated successfully.' })
+  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async updateLegacyBoardCard(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('cardId') cardId: string,
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    body: UpdateLegacyBoardCardDto,
+  ) {
+    return this.playgroundService.updateLegacyBoardCard(cardId, body, user);
+  }
+
+  @Delete('board-cards/:cardId')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Delete legacy board card by id' })
+  @ApiParam({ name: 'cardId', description: 'Board card id' })
+  @ApiOkResponse({ description: 'Board card deleted successfully.' })
+  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async deleteLegacyBoardCard(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('cardId') cardId: string,
+  ) {
+    await this.playgroundService.deleteLegacyBoardCard(cardId, user);
+    return { success: true };
+  }
+
+  @Post('board-cards/:cardId/convert-to-request')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Convert board card to a request' })
+  @ApiParam({ name: 'cardId', description: 'Board card id' })
+  @ApiCreatedResponse({ description: 'Request created from board card.' })
+  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async convertBoardCardToRequest(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('cardId') cardId: string,
+    @Query('workspaceId') workspaceId: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    // The frontend may send the request payload nested under a `request` key
+    const payload =
+      typeof body.request === 'object' && body.request !== null
+        ? (body.request as Record<string, unknown>)
+        : body;
+
+    return this.playgroundService.convertLegacyBoardCardToRequest(
+      workspaceId ?? user.organizationId,
+      cardId,
+      {
+        title: typeof payload.title === 'string' ? payload.title : undefined,
+        description:
+          typeof payload.description === 'string'
+            ? payload.description
+            : undefined,
+        tags: Array.isArray(payload.tags)
+          ? (payload.tags as string[])
+          : undefined,
+        sourceType:
+          typeof payload.sourceType === 'string'
+            ? payload.sourceType
+            : undefined,
+        boardId:
+          typeof body.boardId === 'string'
+            ? body.boardId
+            : typeof payload.boardId === 'string'
+              ? payload.boardId
+              : undefined,
+        problems: Array.isArray(payload.problems)
+          ? (payload.problems as string[])
+          : undefined,
+        solutions: Array.isArray(payload.solutions)
+          ? (payload.solutions as string[])
+          : undefined,
+        product:
+          typeof payload.product === 'string' ? payload.product : undefined,
+        functionality:
+          typeof payload.functionality === 'string'
+            ? payload.functionality
+            : undefined,
+        feedbackIds: Array.isArray(payload.feedbackIds)
+          ? (payload.feedbackIds as string[])
+          : undefined,
+      },
+      user,
+    );
+  }
+
+  @Post('board-cards/:cardId/convert')
+  @Roles(Role.Admin, Role.Editor)
+  @ApiOperation({ summary: 'Convert board card to a request (alias)' })
+  @ApiParam({ name: 'cardId', description: 'Board card id' })
+  @ApiCreatedResponse({ description: 'Request created from board card.' })
+  @ApiForbiddenResponse({ description: 'Role does not allow this operation.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async convertBoardCardToRequestAlias(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('cardId') cardId: string,
+    @Query('workspaceId') workspaceId: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    // The frontend may send the request payload nested under a `request` key
+    const payload =
+      typeof body.request === 'object' && body.request !== null
+        ? (body.request as Record<string, unknown>)
+        : body;
+
+    return this.playgroundService.convertLegacyBoardCardToRequest(
+      workspaceId ?? user.organizationId,
+      cardId,
+      {
+        title: typeof payload.title === 'string' ? payload.title : undefined,
+        description:
+          typeof payload.description === 'string'
+            ? payload.description
+            : undefined,
+        tags: Array.isArray(payload.tags)
+          ? (payload.tags as string[])
+          : undefined,
+        sourceType:
+          typeof payload.sourceType === 'string'
+            ? payload.sourceType
+            : undefined,
+        boardId:
+          typeof body.boardId === 'string'
+            ? body.boardId
+            : typeof payload.boardId === 'string'
+              ? payload.boardId
+              : undefined,
+        problems: Array.isArray(payload.problems)
+          ? (payload.problems as string[])
+          : undefined,
+        solutions: Array.isArray(payload.solutions)
+          ? (payload.solutions as string[])
+          : undefined,
+        product:
+          typeof payload.product === 'string' ? payload.product : undefined,
+        functionality:
+          typeof payload.functionality === 'string'
+            ? payload.functionality
+            : undefined,
+        feedbackIds: Array.isArray(payload.feedbackIds)
+          ? (payload.feedbackIds as string[])
+          : undefined,
+      },
+      user,
+    );
+  }
+
   @Post('workspaces/:id/hypotheses')
   @Roles(Role.Admin, Role.Editor)
   @ApiOperation({ summary: 'Create hypothesis in playground workspace' })
@@ -324,9 +480,7 @@ export class PlaygroundController {
     @Body(new ValidationPipe({ whitelist: true, transform: true }))
     body: CreatePlaygroundHypothesisDto,
   ) {
-    return {
-      hypothesis: await this.playgroundService.createHypothesis(id, body, user),
-    };
+    return this.playgroundService.createHypothesis(id, body, user);
   }
 
   @Get('workspaces/:id/hypotheses')
@@ -356,12 +510,7 @@ export class PlaygroundController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
   ) {
-    return {
-      hypothesis: await this.playgroundService.getHypothesis(
-        id,
-        user.organizationId,
-      ),
-    };
+    return this.playgroundService.getHypothesis(id, user.organizationId);
   }
 
   @Patch('hypotheses/:id')
@@ -377,9 +526,7 @@ export class PlaygroundController {
     @Body(new ValidationPipe({ whitelist: true, transform: true }))
     body: UpdatePlaygroundHypothesisDto,
   ) {
-    return {
-      hypothesis: await this.playgroundService.updateHypothesis(id, body, user),
-    };
+    return this.playgroundService.updateHypothesis(id, body, user);
   }
 
   @Delete('hypotheses/:id')
@@ -414,9 +561,7 @@ export class PlaygroundController {
     @Body(new ValidationPipe({ whitelist: true, transform: true }))
     body: CreatePlaygroundInsightDto,
   ) {
-    return {
-      insight: await this.playgroundService.createInsight(id, body, user),
-    };
+    return this.playgroundService.createInsight(id, body, user);
   }
 
   @Get('workspaces/:id/insights')
@@ -442,9 +587,7 @@ export class PlaygroundController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
   ) {
-    return {
-      insight: await this.playgroundService.getInsight(id, user.organizationId),
-    };
+    return this.playgroundService.getInsight(id, user.organizationId);
   }
 
   @Get('insights/:id/requests')
@@ -477,9 +620,7 @@ export class PlaygroundController {
     @Body(new ValidationPipe({ whitelist: true, transform: true }))
     body: UpdatePlaygroundInsightDto,
   ) {
-    return {
-      insight: await this.playgroundService.updateInsight(id, body, user),
-    };
+    return this.playgroundService.updateInsight(id, body, user);
   }
 
   @Post('workspaces/:id/insights/:insightId/promote-request')

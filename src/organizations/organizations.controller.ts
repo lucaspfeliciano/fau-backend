@@ -41,12 +41,7 @@ export class OrganizationsController {
     @Body(new ZodValidationPipe(CreateOrganizationSchema))
     body: CreateOrganizationInput,
   ) {
-    return {
-      organization: await this.organizationsService.createForUser(
-        body.name,
-        user.id,
-      ),
-    };
+    return this.organizationsService.createForUser(body.name, user.id);
   }
 
   @Get('me')

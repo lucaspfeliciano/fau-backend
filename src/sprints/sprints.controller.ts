@@ -61,9 +61,7 @@ export class SprintsController {
     @Body(new ValidationPipe({ whitelist: true, transform: true }))
     body: CreateSprintDto,
   ) {
-    return {
-      sprint: await this.sprintsService.create(body, user),
-    };
+    return this.sprintsService.create(body, user);
   }
 
   @Get()
@@ -87,9 +85,7 @@ export class SprintsController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
   ) {
-    return {
-      sprint: await this.sprintsService.findOneById(id, user.organizationId),
-    };
+    return this.sprintsService.findOneById(id, user.organizationId);
   }
 
   @Patch(':id')
@@ -113,8 +109,6 @@ export class SprintsController {
     @Body(new ValidationPipe({ whitelist: true, transform: true }))
     body: UpdateSprintDto,
   ) {
-    return {
-      sprint: await this.sprintsService.update(id, body, user),
-    };
+    return this.sprintsService.update(id, body, user);
   }
 }

@@ -49,13 +49,7 @@ export class TeamsController {
     @Body(new ZodValidationPipe(CreateTeamSchema))
     body: CreateTeamInput,
   ) {
-    return {
-      team: await this.teamsService.create(
-        body.name,
-        user.organizationId,
-        user.id,
-      ),
-    };
+    return this.teamsService.create(body.name, user.organizationId, user.id);
   }
 
   @Get()
@@ -81,13 +75,11 @@ export class TeamsController {
     @Body(new ZodValidationPipe(UpdateTeamSchema))
     body: UpdateTeamInput,
   ) {
-    return {
-      team: await this.teamsService.update(
-        id,
-        body.name,
-        user.organizationId,
-        user.id,
-      ),
-    };
+    return this.teamsService.update(
+      id,
+      body.name,
+      user.organizationId,
+      user.id,
+    );
   }
 }
